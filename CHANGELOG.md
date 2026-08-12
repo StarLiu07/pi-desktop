@@ -3,6 +3,15 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.8] - 2026-08-13
+
+### Features
+- 输入框下方新增会话用量统计行（与 pi CLI footer 一致）：`↑` 输入 token / `↓` 输出
+  token / `R` 缓存读取 / `W` 缓存写入 / `CH` 缓存命中率（取最新一条回复）/ `¥` 使用
+  金额（实时汇率 USD→CNY，失败回退 7.2）。每轮对话结束自动累计更新，历史会话同样适用；
+  金额与 token 数字格式化逐项对齐 pi CLI（spike/ 下新增 mock bridge 装置可脱离
+  Tauri 做浏览器端 E2E 冒烟测试）
+
 ## [0.1.7] - 2026-08-13
 
 ### Fixed

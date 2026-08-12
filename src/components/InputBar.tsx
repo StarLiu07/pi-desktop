@@ -1,18 +1,35 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
+import {
+  computeSessionUsage,
+  formatTokens,
+  getCnyPerUsd,
+  refreshCnyRate,
+} from '../lib/usage';
 
 export function InputBar() {
   const agentActive = useStore((s) => s.tabs[s.activeTabIndex]?.agentActive);
   const activeTabIndex = useStore((s) => s.activeTabIndex);
+  const messages = useStore((s) => s.tabs[s.activeTabIndex]?.messages);
   const sendPrompt = useStore((s) => s.sendPrompt);
   const abort = useStore((s) => s.abort);
   const [text, setText] = useState('');
+  // Bumped when the USD→CNY rate finishes loading so the cost line refreshes.
+  const [, setRateTick] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Focus on mount and whenever the active tab changes.
   useEffect(() => {
     textareaRef.current?.focus();
   }, [activeTabIndex]);
+
+  // Warm the USD→CNY rate once; cost shows in ¥ like pi's footer.
+  useEffect(() => {
+    refreshCnyRate().then(() => setRateTick((t) => t + 1));
+  }, []);
+
+  // Session totals for the footer, mirroring pi CLI's footer stats.
+  const usage = useMemo(() => computeSessionUsage(messages ?? []), [messages]);
 
   const submit = () => {
     const trimmed = text.trim();
@@ -61,7 +78,23 @@ export function InputBar() {
         )}
       </div>
       <div className="input-hint">
-        {agentActive ? 'agent 运行中，可随时停止' : 'Enter 发送 · Shift+Enter 换行 · 双击标签重命名'}
+        {usage && (
+          <span className="usage-stats">
+            {usage.input > 0 && <span>↑{formatTokens(usage.input)}</span>}
+            {usage.output > 0 && <span>↓{formatTokens(usage.output)}</span>}
+            {usage.cacheRead > 0 && <span>R{formatTokens(usage.cacheRead)}</span>}
+            {usage.cacheWrite > 0 && <span>W{formatTokens(usage.cacheWrite)}</span>}
+            {usage.hitRate !== null && (usage.cacheRead > 0 || usage.cacheWrite > 0) && (
+              <span>CH{usage.hitRate.toFixed(1)}%</span>
+            )}
+            {usage.costUsd > 0 && (
+              <span>¥{(usage.costUsd * getCnyPerUsd()).toFixed(2)}</span>
+            )}
+          </span>
+        )}
+        <span className="input-hint-text">
+          {agentActive ? 'agent 运行中，可随时停止' : 'Enter 发送 · Shift+Enter 换行 · 双击标签重命名'}
+        </span>
       </div>
     </div>
   );

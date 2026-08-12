@@ -299,6 +299,13 @@ select:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
+}
+
+.sidebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .sidebar-header button {
@@ -310,7 +317,22 @@ select:focus {
   border-radius: 5px;
 }
 
-.sidebar-header button:hover {
+.sidebar-header button.name-all {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+}
+
+.sidebar-header button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.sidebar-header button:hover:not(:disabled) {
   color: var(--accent);
   background: var(--bg-hover);
 }
@@ -779,9 +801,31 @@ select:focus {
   margin: 6px auto 0;
   font-size: 10.5px;
   color: var(--text-faint);
-  text-align: right;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* Session usage stats under the input box — pi CLI footer style: ↑↓ R W CH% ¥ */
+.usage-stats {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.usage-stats span {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+}
+
+.input-hint-text {
+  margin-left: auto;
+  text-align: right;
 }
 
 /* ---------- status bar ---------- */
