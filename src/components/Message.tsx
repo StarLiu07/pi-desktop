@@ -1,7 +1,7 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { memo } from 'react';
+import { memo, useState, type HTMLAttributes } from 'react';
 import type { ChatMessage, ContentPart } from '../rpc/types';
 import type { ToolExecState } from '../store/useStore';
 import { ToolCard } from './ToolCard';
@@ -11,6 +11,29 @@ interface RowProps {
   toolExecs: Record<string, ToolExecState>;
   /** true while this assistant message is still receiving message_update events */
   streaming?: boolean;
+}
+
+/** Code block with a copy button; falls back to a plain pre outside of markdown. */
+function CodeBlock({ children, ...props }: HTMLAttributes<HTMLPreElement>) {
+  const [copied, setCopied] = useState(false);
+  const text = String(children ?? '');
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
+  return (
+    <div className="code-wrap">
+      <button className="code-copy" onClick={copy} title="复制代码">
+        {copied ? '✓' : '⧉'}
+      </button>
+      <pre {...props}>{children}</pre>
+    </div>
+  );
 }
 
 /** Assistant message content: thinking blocks, tool call cards and text parts. */
@@ -67,9 +90,20 @@ function AssistantContent({
             }
             return (
               <div key={i} className="md-text">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeHighlight]}
+                  components={{ pre: CodeBlock }}
+                >
                   {part.text ?? ''}
                 </ReactMarkdown>
+              </div>
+            );
+          case 'image':
+            // Multimodal image part (data URL or path).
+            return (
+              <div key={i} className="md-image">
+                <img src={part.image} alt="" />
               </div>
             );
           default:

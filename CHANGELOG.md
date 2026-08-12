@@ -3,6 +3,16 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.4] - 2026-08-12
+
+### Fixed
+- 中文输入法（IME）按 Enter 确认候选词不再误发送消息（`isComposing` 检查）
+
+### Features
+- 模型下拉按提供商分组（optgroup），几十个模型不再难找
+- 代码块悬停显示一键复制按钮
+- 多模态消息图片渲染（data URL / 路径）
+
 ## [0.1.3] - 2026-08-12
 
 ### Features

@@ -43,7 +43,8 @@ export function InputBar() {
             autoGrow();
           }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            // isComposing: IME 输入法确认候选词也触发 Enter,不能提交
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               submit();
             }

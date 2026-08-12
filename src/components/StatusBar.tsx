@@ -1,6 +1,18 @@
 import { useStore } from '../store/useStore';
+import type { ModelInfo } from '../rpc/types';
 
 const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+
+/** Models grouped by provider, preserving first-seen order. */
+function groupByProvider(models: ModelInfo[]): [string, ModelInfo[]][] {
+  const groups = new Map<string, ModelInfo[]>();
+  for (const m of models) {
+    const list = groups.get(m.provider) ?? [];
+    list.push(m);
+    groups.set(m.provider, list);
+  }
+  return [...groups.entries()];
+}
 
 export function StatusBar() {
   const status = useStore((s) => s.status);
@@ -40,10 +52,14 @@ export function StatusBar() {
           onChange={(e) => setModel(e.target.value)}
           title="模型"
         >
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
+          {groupByProvider(models).map(([provider, list]) => (
+            <optgroup key={provider} label={provider}>
+              {list.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
       </span>

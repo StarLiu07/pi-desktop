@@ -6,13 +6,18 @@
 
 ## 功能
 
-- 🗂️ 多会话标签页：新建 / 切换 / 关闭 / 从历史树打开
-- 💬 流式对话：markdown + GFM + 代码高亮，思考过程可折叠
+- 🗂️ 多会话标签页：新建 / 切换 / 关闭 / 从历史树打开（快捷键 Ctrl+N / Ctrl+W / Ctrl+1…9）
+- 💬 流式对话：markdown + GFM + 代码高亮（代码块一键复制），思考过程可折叠
 - 🛠️ 工具调用可视化：read / write / edit / bash 卡片，实时输出与状态
-- 🤖 模型切换：`get_available_models` 全量列表，底部状态栏即选即用
+- 🤖 模型切换：`get_available_models` 全量列表按提供商分组，底部状态栏即选即用
 - 🧠 思考等级切换：off / minimal / low / medium / high / xhigh / max
 - 🛑 随时中止当前回合（`abort`）
+- 📊 assistant 消息尾部显示模型 / token 用量 / 成本
+- 🖼️ 多模态消息图片渲染（data URL / 路径）
+- 🔍 设置弹窗内置 pi stderr 日志查看器，诊断不求人
 - ⚙️ 暗色终端主题，会话独立存储（`%APPDATA%\pi-desktop\sessions`）
+
+> 注：中文输入法（IME）下按 Enter 确认候选词不会误发送消息。
 
 ## 架构
 
