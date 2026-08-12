@@ -1,0 +1,4 @@
+# Pin the mingw-w64 linker for the GNU toolchain so `cargo build` works even
+# when C:\msys64\mingw64\bin is not on PATH.
+[target.x86_64-pc-windows-gnu]
+linker = "C:/msys64/mingw64/bin/gcc.exe"
