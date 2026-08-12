@@ -116,9 +116,20 @@ function AssistantContent({
 
 const AssistantContentMemo = memo(AssistantContent);
 
+/** Recursively extract plain text from a content part (tool results nest arrays). */
+function partText(c: ContentPart): string {
+  if (typeof c.text === 'string') return c.text;
+  if (Array.isArray(c.content)) {
+    return c.content
+      .map((x) => (typeof x === 'string' ? x : partText(x as ContentPart)))
+      .join('\n');
+  }
+  return '';
+}
+
 export function MessageRow({ message, toolExecs, streaming = false }: RowProps) {
   if (message.role === 'user') {
-    const text = message.content.map((c) => c.text ?? '').join('\n');
+    const text = message.content.map(partText).join('\n');
     return (
       <div className="message-row user">
         <span className="prompt">&gt;</span>
@@ -127,7 +138,7 @@ export function MessageRow({ message, toolExecs, streaming = false }: RowProps) 
     );
   }
   if (message.role === 'toolResult') {
-    const text = message.content.map((c) => (c.text ?? c.content ?? '')).join('\n');
+    const text = message.content.map(partText).join('\n');
     return (
       <div className="message-row tool-result">
         <div className="bubble">{text || '（无输出）'}</div>

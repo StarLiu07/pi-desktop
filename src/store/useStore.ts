@@ -428,6 +428,12 @@ export const useStore = create<Store>((set, get) => {
     },
 
     newSession: async () => {
+      // Stop any running agent first — pi handles one agent at a time, and a
+      // prompt on the fresh tab would silently abort the current one.
+      const cur = get().tabs[get().activeTabIndex];
+      if (cur?.agentActive) {
+        await rpc({ type: 'abort' }).catch(() => null);
+      }
       // pi creates the new session file on the next prompt; open an empty tab now.
       await rpc({ type: 'new_session' }).catch(() => null);
       set((s) => {

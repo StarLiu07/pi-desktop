@@ -315,6 +315,25 @@ select:focus {
   background: var(--bg-hover);
 }
 
+.sidebar-search {
+  margin: 0 10px 8px;
+  width: calc(100% - 20px);
+  padding: 5px 9px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: var(--bg-element);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.sidebar-search::placeholder {
+  color: var(--text-faint);
+}
+
+.sidebar-search:focus {
+  border-color: var(--accent);
+}
+
 .session-tree {
   flex: 1;
   overflow-y: auto;

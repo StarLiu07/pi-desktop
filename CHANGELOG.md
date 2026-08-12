@@ -3,6 +3,17 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.5] - 2026-08-12
+
+### Fixed
+- 新建会话时先 abort 当前运行的 agent（pi 同一时刻只处理一个 agent，
+  之前在新标签发消息会静默打断旧会话）
+- toolResult 文本递归提取：嵌套 content 数组不再显示 `[object Object]`
+
+### Features
+- 会话历史新增搜索框（按名称/文件名过滤）
+- 会话时间显示改为相对时间（刚刚 / N 分钟前 / N 小时前 / N 天前）
+
 ## [0.1.4] - 2026-08-12
 
 ### Fixed
