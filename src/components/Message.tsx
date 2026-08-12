@@ -57,7 +57,7 @@ function AssistantContent({
         switch (part.type) {
           case 'thinking':
             return (
-              <details className="thinking-block" key={i}>
+              <details className="thinking-block" key={i} open={streaming}>
                 <summary>思考过程</summary>
                 <div className="thinking-content">{part.thinking}</div>
               </details>

@@ -3,6 +3,11 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.6] - 2026-08-12
+
+### UX
+- 思考过程块在流式输出期间默认展开，实时可见；结束后恢复可折叠
+
 ## [0.1.5] - 2026-08-12
 
 ### Fixed
