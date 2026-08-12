@@ -1,0 +1,4 @@
+# Normalize line endings: LF for source, CRLF for Windows batch launchers.
+* text=auto
+*.bat text eol=crlf
+*.sh text eol=lf
