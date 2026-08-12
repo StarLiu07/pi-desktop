@@ -1,0 +1,63 @@
+# 打 v* 标签时自动构建 Windows 安装包并发布到 GitHub Releases（draft）。
+# 流程：检出 → Node 22 + MSYS2 (mingw-w64) + Rust GNU target → npm ci → tauri build → 上传产物
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # 项目用 GNU 工具链（.cargo/config.toml 固定了 C:/msys64/mingw64/bin/gcc.exe），
+      # 必须把 MSYS2 装到同一路径，runner 默认 MSVC 无法编译。
+      - name: Setup MSYS2 (mingw-w64 toolchain)
+        uses: msys2/setup-msys2@v2
+        with:
+          path: C:\msys64
+          update: false
+          install: mingw-w64-x86_64-gcc
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: Pi Desktop v__VERSION__
+          releaseBody: |
+            ## Pi Desktop v__VERSION__
+
+            Pi coding agent 的桌面前端（OpenCode 风格界面）。
+
+            **下载**
+            - `.msi` / `.exe` 安装包或便携版 `pi-desktop.exe` 见下方 Assets
+
+            首次运行需已安装 pi CLI（`npm install -g @earendil-works/pi-coding-agent`）。
+          releaseDraft: true
+          prerelease: false
