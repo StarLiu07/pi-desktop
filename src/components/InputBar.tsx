@@ -26,11 +26,12 @@ export function InputBar() {
   return (
     <div className="inputbar">
       <div className="inputbox">
+        <span className="prompt">&gt;</span>
         <textarea
           ref={textareaRef}
           rows={1}
           value={text}
-          placeholder="输入消息 — Enter 发送，Shift+Enter 换行"
+          placeholder="输入消息…"
           onChange={(e) => {
             setText(e.target.value);
             autoGrow();
@@ -44,13 +45,16 @@ export function InputBar() {
         />
         {agentActive ? (
           <button className="stop-btn" onClick={() => abort()}>
-            停止
+            ■ 停止
           </button>
         ) : (
           <button className="send-btn" onClick={submit} disabled={!text.trim()}>
             发送
           </button>
         )}
+      </div>
+      <div className="input-hint">
+        {agentActive ? 'agent 运行中，可随时停止' : 'Enter 发送 · Shift+Enter 换行 · 双击标签重命名'}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from './store/useStore';
-import { TabBar } from './components/TabBar';
+import { TopBar } from './components/TopBar';
 import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
 import { InputBar } from './components/InputBar';
@@ -75,7 +75,7 @@ export default function App() {
   return (
     <div className="app">
       <Sidebar />
-      <TabBar />
+      <TopBar />
       <ChatView />
       <InputBar />
       <StatusBar />

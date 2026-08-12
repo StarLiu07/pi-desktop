@@ -38,8 +38,7 @@ function AssistantContent({
                 <summary>思考过程</summary>
                 <div className="thinking-content">{part.thinking}</div>
               </details>
-            );
-          case 'toolCall': {
+            );          case 'toolCall': {
             const exec = part.id ? toolExecs[part.id] : undefined;
             return (
               <ToolCard
@@ -88,7 +87,8 @@ export function MessageRow({ message, toolExecs, streaming = false }: RowProps) 
     const text = message.content.map((c) => c.text ?? '').join('\n');
     return (
       <div className="message-row user">
-        <div className="bubble">{text}</div>
+        <span className="prompt">&gt;</span>
+        <div className="user-text">{text}</div>
       </div>
     );
   }

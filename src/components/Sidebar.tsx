@@ -13,7 +13,6 @@ export function Sidebar() {
   const activeTabIndex = useStore((s) => s.activeTabIndex);
   const openSessionFromHistory = useStore((s) => s.openSessionFromHistory);
   const newSession = useStore((s) => s.newSession);
-  const setSettingsOpen = useStore((s) => s.setSettingsOpen);
 
   const activeId = tabs[activeTabIndex]?.sessionId;
 
@@ -42,9 +41,6 @@ export function Sidebar() {
             </div>
           ))
         )}
-      </div>
-      <div className="sidebar-footer">
-        <button onClick={() => setSettingsOpen(true)}>设置</button>
       </div>
     </aside>
   );
