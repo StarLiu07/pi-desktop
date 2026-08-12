@@ -24,11 +24,10 @@ jobs:
           cache: npm
 
       # 项目用 GNU 工具链（.cargo/config.toml 固定了 C:/msys64/mingw64/bin/gcc.exe），
-      # 必须把 MSYS2 装到同一路径，runner 默认 MSVC 无法编译。
+      # MSYS2 默认装到 C:\msys64，与固定路径一致；runner 默认 MSVC 无法编译。
       - name: Setup MSYS2 (mingw-w64 toolchain)
         uses: msys2/setup-msys2@v2
         with:
-          path: C:\msys64
           update: false
           install: mingw-w64-x86_64-gcc
 
