@@ -3,6 +3,14 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.7] - 2026-08-13
+
+### Fixed
+- 历史会话加载：桌面版之前的 pi CLI 会话（`~/.pi/agent/sessions`）不再"消失"——
+  刷新历史时自动按文件名去重同步进桌面会话目录（幂等、不覆盖已有文件，
+  尊重 `PI_CODING_AGENT_SESSION_DIR` / `PI_CODING_AGENT_DIR` 环境变量），
+  之后 CLI 新建的会话也会自动出现
+
 ## [0.1.6] - 2026-08-12
 
 ### UX

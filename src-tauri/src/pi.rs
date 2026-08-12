@@ -68,12 +68,72 @@ fn find_pi_entry_uncached() -> Option<String> {
     None
 }
 
-/// Default session directory for desktop sessions, kept separate from CLI sessions.
+/// Desktop session directory. New sessions are created here (the pi subprocess
+/// gets `--session-dir`); pi CLI sessions are synced into it on listing.
 fn default_session_dir() -> String {
     if let Ok(appdata) = std::env::var("APPDATA") {
         return format!("{}\\pi-desktop\\sessions", appdata);
     }
     "pi-desktop-sessions".to_string()
+}
+
+/// Resolve where the pi CLI keeps its sessions when not given an explicit
+/// `--session-dir`. Mirrors pi's own resolution (config.js):
+/// `$PI_CODING_AGENT_SESSION_DIR` → `$PI_CODING_AGENT_DIR/sessions` →
+/// `<home>/.pi/agent/sessions` (sessions live in cwd-encoded subdirs there).
+fn pi_cli_sessions_root() -> Option<String> {
+    if let Ok(dir) = std::env::var("PI_CODING_AGENT_SESSION_DIR") {
+        if !dir.is_empty() {
+            return Some(dir);
+        }
+    }
+    if let Ok(dir) = std::env::var("PI_CODING_AGENT_DIR") {
+        if !dir.is_empty() {
+            return Some(Path::new(&dir).join("sessions").to_string_lossy().to_string());
+        }
+    }
+    let home = if cfg!(windows) {
+        std::env::var("USERPROFILE")
+    } else {
+        std::env::var("HOME")
+    }
+    .ok()?;
+    Some(Path::new(&home).join(".pi").join("agent").join("sessions").to_string_lossy().to_string())
+}
+
+/// Copy sessions created by the pi CLI (pre-desktop conversations) into the
+/// desktop session dir, so the history tree shows them alongside desktop
+/// sessions. Sessions may live in nested cwd-encoded subdirs, so walk
+/// recursively.
+///
+/// Idempotent: only files missing from the destination are copied and existing
+/// files are never overwritten — once a session is continued in the desktop,
+/// its desktop copy becomes the canonical file. Returns the number of files
+/// imported.
+fn sync_cli_sessions_into(desktop_dir: &Path, cli_root: &Path) -> Result<usize, String> {
+    if !cli_root.is_dir() {
+        return Ok(0); // pi CLI never used — nothing to import
+    }
+    std::fs::create_dir_all(desktop_dir).map_err(|e| format!("创建会话目录失败: {}", e))?;
+    let mut imported = 0;
+    let mut stack = vec![cli_root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let read_dir = std::fs::read_dir(&dir).map_err(|e| format!("读取 {} 失败: {}", dir.display(), e))?;
+        for entry in read_dir.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().and_then(|e| e.to_str()) == Some("jsonl") {
+                let dest = desktop_dir.join(entry.file_name());
+                if !dest.exists() {
+                    std::fs::copy(&path, &dest)
+                        .map_err(|e| format!("复制会话 {} 失败: {}", path.display(), e))?;
+                    imported += 1;
+                }
+            }
+        }
+    }
+    Ok(imported)
 }
 
 /// Parse a single JSONL line into a Value, tolerating surrounding whitespace.
@@ -229,9 +289,17 @@ pub struct SessionMeta {
 
 /// List all session files in the desktop session dir, newest first.
 /// pi's RPC has no "list sessions" command, so we scan the session store directly.
+/// Before scanning, sessions created by the pi CLI are synced in so history
+/// from before the desktop existed shows up too.
 #[tauri::command]
 pub fn list_sessions(_app: AppHandle) -> Result<Vec<SessionMeta>, String> {
     let dir = default_session_dir();
+    if let Some(cli_root) = pi_cli_sessions_root() {
+        if let Err(e) = sync_cli_sessions_into(Path::new(&dir), Path::new(&cli_root)) {
+            // A sync hiccup must not break history — log and list what we have.
+            eprintln!("[pi] cli session sync failed: {}", e);
+        }
+    }
     let read_dir = std::fs::read_dir(&dir).map_err(|e| format!("读取会话目录失败: {}", e))?;
     let mut out: Vec<SessionMeta> = Vec::new();
     for entry in read_dir.flatten() {
@@ -316,6 +384,21 @@ pub fn list_sessions(_app: AppHandle) -> Result<Vec<SessionMeta>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static TMP_SEQ: AtomicUsize = AtomicUsize::new(0);
+
+    /// Unique temp dir for a test (no tempfile crate dependency).
+    fn tmp_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "pi-desktop-test-{}-{}-{}",
+            tag,
+            std::process::id(),
+            TMP_SEQ.fetch_add(1, Ordering::SeqCst)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
 
     #[test]
     fn parses_jsonl_lines() {
@@ -324,5 +407,41 @@ mod tests {
         assert_eq!(parse_line(""), None);
         assert_eq!(parse_line("\n"), None);
         assert_eq!(parse_line("not json"), None);
+    }
+
+    #[test]
+    fn sync_imports_cli_sessions_idempotently() {
+        let root = tmp_dir("sync");
+        let cli_root = root.join("cli-root");
+        let desktop = root.join("desktop");
+        let nested = cli_root.join("--C--Users-Sheldon--");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        // A pre-desktop CLI session, nested in a cwd-encoded subdir.
+        let cli_session = nested.join("2026-07-22T12-39-14-734Z_019f89d6.jsonl");
+        std::fs::write(&cli_session, "{\"type\":\"session\",\"version\":3,\"id\":\"019f89d6\",\"timestamp\":\"2026-07-22T12:39:14.734Z\",\"cwd\":\"C:\\\\Users\\\\Sheldon\"}\n").unwrap();
+        // A flat CLI session (e.g. when PI_CODING_AGENT_SESSION_DIR is set).
+        let flat_session = cli_root.join("2026-07-30T08-43-18-046Z_019fb231.jsonl");
+        std::fs::write(&flat_session, "{\"type\":\"session\",\"version\":3,\"id\":\"019fb231\",\"timestamp\":\"2026-07-30T08:43:18.046Z\"}\n").unwrap();
+        // A desktop-created session that must never be touched or re-copied.
+        let desktop_session = desktop.join("2026-08-12T12-00-00-000Z_019ff000.jsonl");
+        std::fs::create_dir_all(&desktop).unwrap();
+        std::fs::write(&desktop_session, "{\"type\":\"session\",\"version\":3,\"id\":\"019ff000\",\"timestamp\":\"2026-08-12T12:00:00.000Z\"}\n").unwrap();
+
+        assert_eq!(sync_cli_sessions_into(&desktop, &cli_root).unwrap(), 2);
+        // Second run: nothing left to import.
+        assert_eq!(sync_cli_sessions_into(&desktop, &cli_root).unwrap(), 0);
+        // Desktop session untouched, imports byte-identical to their sources.
+        assert_eq!(
+            std::fs::read_to_string(&desktop_session).unwrap(),
+            "{\"type\":\"session\",\"version\":3,\"id\":\"019ff000\",\"timestamp\":\"2026-08-12T12:00:00.000Z\"}\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(desktop.join("2026-07-22T12-39-14-734Z_019f89d6.jsonl")).unwrap(),
+            std::fs::read_to_string(&cli_session).unwrap()
+        );
+        assert!(desktop.join("2026-07-30T08-43-18-046Z_019fb231.jsonl").exists());
+        // Missing CLI root is a silent no-op.
+        assert_eq!(sync_cli_sessions_into(&desktop, &root.join("nope")).unwrap(), 0);
     }
 }

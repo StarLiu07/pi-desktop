@@ -15,7 +15,7 @@
 - 📊 assistant 消息尾部显示模型 / token 用量 / 成本
 - 🖼️ 多模态消息图片渲染（data URL / 路径）
 - 🔍 设置弹窗内置 pi stderr 日志查看器，诊断不求人
-- ⚙️ 暗色终端主题，会话独立存储（`%APPDATA%\pi-desktop\sessions`）
+- ⚙️ 暗色终端主题，会话独立存储（`%APPDATA%\pi-desktop\sessions`），刷新历史时自动把 pi CLI 时期的历史会话（`~/.pi/agent/sessions`）同步进来
 
 > 注：中文输入法（IME）下按 Enter 确认候选词不会误发送消息。
 
@@ -78,7 +78,10 @@ spike/           协议探针（校准 RPC 类型定义用的真实输出）
 - `new_session` 后，第一次 `prompt` 才真正创建会话文件
 - `message_update` 事件自带完整消息快照（`message` 字段），直接用快照渲染，
   无需手工累积 delta
-- 会话列表没有 RPC 命令，由 Rust 直接扫描会话存储目录（`*.jsonl`）
+- 会话列表没有 RPC 命令，由 Rust 直接扫描会话存储目录（`*.jsonl`）；
+  扫描前会把 pi CLI 的会话（`~/.pi/agent/sessions/**`，同样尊重
+  `PI_CODING_AGENT_SESSION_DIR` / `PI_CODING_AGENT_DIR` 环境变量）按文件名
+  去重复制进桌面会话目录，幂等且不覆盖已有文件
 - `fork` 的 `entryId` 必须是**最后一条 user 消息**的 id（assistant 回复的 id
   会报 `Invalid entry ID for forking`）；`get_messages` 返回的消息不带 id，
   因此由 Rust 解析会话文件提供

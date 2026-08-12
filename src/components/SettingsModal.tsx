@@ -21,7 +21,7 @@ export function SettingsModal() {
         </div>
         <div className="field">
           <label>会话目录</label>
-          <div className="value">%APPDATA%\pi-desktop\sessions（与 pi CLI 的会话隔离）</div>
+          <div className="value">%APPDATA%\pi-desktop\sessions（首次刷新时自动导入 pi CLI 的历史会话）</div>
         </div>
         <div className="field">
           <label>提供商与模型</label>
