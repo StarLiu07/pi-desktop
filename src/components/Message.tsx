@@ -108,6 +108,15 @@ export function MessageRow({ message, toolExecs, streaming = false }: RowProps) 
           toolExecs={toolExecs}
           streaming={streaming}
         />
+        {!streaming && (message.model || message.usage) && (
+          <div className="msg-meta">
+            {message.model}
+            {message.model && message.usage ? ' · ' : ''}
+            {message.usage
+              ? `${message.usage.totalTokens.toLocaleString()} tokens · $${message.usage.cost.total.toFixed(4)}`
+              : ''}
+          </div>
+        )}
       </div>
     </div>
   );

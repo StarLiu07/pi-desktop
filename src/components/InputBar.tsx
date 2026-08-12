@@ -1,12 +1,18 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 
 export function InputBar() {
   const agentActive = useStore((s) => s.tabs[s.activeTabIndex]?.agentActive);
+  const activeTabIndex = useStore((s) => s.activeTabIndex);
   const sendPrompt = useStore((s) => s.sendPrompt);
   const abort = useStore((s) => s.abort);
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Focus on mount and whenever the active tab changes.
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, [activeTabIndex]);
 
   const submit = () => {
     const trimmed = text.trim();

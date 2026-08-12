@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useStore } from './store/useStore';
 import { TopBar } from './components/TopBar';
 import { Sidebar } from './components/Sidebar';
@@ -63,10 +64,44 @@ function ErrorScreen() {
 export default function App() {
   const status = useStore((s) => s.status);
   const init = useStore((s) => s.init);
+  const activeName = useStore((s) => s.tabs[s.activeTabIndex]?.name);
 
   useEffect(() => {
     init();
   }, [init]);
+
+  // Window title follows the active session; falls back to the plain title in
+  // plain-browser dev (no Tauri window handle).
+  useEffect(() => {
+    if (status !== 'ready') return;
+    const title = activeName && activeName !== '新会话' ? `${activeName} — Pi Desktop` : 'Pi Desktop';
+    document.title = title;
+    try {
+      getCurrentWindow().setTitle(title);
+    } catch {
+      /* running outside Tauri */
+    }
+  }, [status, activeName]);
+
+  // Desktop shortcuts: Ctrl+N new, Ctrl+W close, Ctrl+1..9 switch tabs.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.altKey || e.metaKey) return;
+      const k = e.key.toLowerCase();
+      if (k === 'n') {
+        e.preventDefault();
+        useStore.getState().newSession();
+      } else if (k === 'w') {
+        e.preventDefault();
+        useStore.getState().closeTab(useStore.getState().activeTabIndex);
+      } else if (k >= '1' && k <= '9') {
+        e.preventDefault();
+        useStore.getState().activateTab(Number(k) - 1);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   if (status === 'installing') return <InstallScreen />;
   if (status === 'error') return <ErrorScreen />;

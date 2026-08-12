@@ -865,6 +865,14 @@ select:focus {
   line-height: 1.7;
 }
 
+/* assistant message footer: model + token usage */
+.msg-meta {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-faint);
+  opacity: 0.8;
+}
+
 .md > *:first-child {
   margin-top: 0;
 }
@@ -1122,6 +1130,25 @@ select:focus {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 18px;
+}
+
+/* pi stderr log viewer in the settings modal */
+.modal .log-view {
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.modal .log-view div {
+  white-space: pre-wrap;
 }
 
 .modal .actions button {

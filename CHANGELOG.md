@@ -3,6 +3,22 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.3] - 2026-08-12
+
+### Features
+- 键盘快捷键：Ctrl+N 新建会话、Ctrl+W 关闭、Ctrl+1…9 切换标签
+- 窗口标题跟随活动会话名
+- assistant 消息底部显示模型名 + token 用量 + 成本（消息结束后）
+- 设置弹窗新增：版本号、快捷键说明、pi stderr 日志查看器（滚动 500 行）
+- 输入框自动聚焦，切换标签后聚焦回输入框
+
+### UX
+- 聊天区智能滚动：只有贴近底部时才跟随新内容，读历史不再被拽回
+- ToolCard 参数 JSON 截断（>240 字符），完整内容在 tooltip
+
+### Performance
+- Vite 手动分包：markdown/highlight 与 tauri 依赖拆出主 bundle（567KB → 206KB）
+
 ## [0.1.2] - 2026-08-12
 
 ### Fixed

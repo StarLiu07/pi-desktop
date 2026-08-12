@@ -2,18 +2,32 @@ import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { MessageRow } from './Message';
 
+/** Within this many px of the bottom, new content keeps the view pinned. */
+const STICK_THRESHOLD = 80;
+
 export function ChatView() {
   const tab = useStore((s) => s.tabs[s.activeTabIndex]);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const activeTabIndex = useStore((s) => s.activeTabIndex);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stick = useRef(true);
 
   const count =
     (tab?.messages.length ?? 0) +
     (tab?.streaming ? 1 : 0) +
     (tab?.pendingUserText ? 1 : 0);
 
+  // Follow new content only while the user is near the bottom — reading an old
+  // message must not be yanked down by incoming deltas.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+    if (!stick.current) return;
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [count]);
+
+  // Switching tabs always lands at the bottom of the new conversation.
+  useEffect(() => {
+    stick.current = true;
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [activeTabIndex]);
 
   if (!tab) return null;
 
@@ -24,7 +38,15 @@ export function ChatView() {
     !tab.agentActive;
 
   return (
-    <div className="chat">
+    <div
+      className="chat"
+      ref={scrollRef}
+      onScroll={() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD;
+      }}
+    >
       {isEmpty ? (
         <div className="chat-empty">
           <span className="logo">π</span>
@@ -60,7 +82,6 @@ export function ChatView() {
           )}
         </div>
       )}
-      <div ref={bottomRef} />
     </div>
   );
 }

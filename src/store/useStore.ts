@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import {
   listSessions,
   onPiEvent,
+  onPiStderr,
   piInstalled,
   sendRpc,
   startPi,
@@ -27,6 +28,9 @@ const RPC_TIMEOUT_MS = 30_000;
 
 /** Subscribe to the pi event stream only once, even across retries. */
 let subscribed = false;
+
+/** Rolling log of pi stderr + lifecycle events, shown in the settings modal. */
+const MAX_LOG_LINES = 500;
 
 export interface ToolExecState {
   id: string; // toolCallId
@@ -67,6 +71,8 @@ interface Store {
   tabs: SessionTab[];
   activeTabIndex: number;
   settingsOpen: boolean;
+  /** pi stderr + lifecycle log lines, newest last */
+  logs: string[];
 
   init(): Promise<void>;
   refreshSessions(): Promise<void>;
@@ -143,6 +149,12 @@ function textOf(content: unknown): string {
 }
 
 export const useStore = create<Store>((set, get) => {
+  /** Append a timestamped log line, keeping the ring bounded. */
+  const log = (line: string) => {
+    const stamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    set((s) => ({ logs: [...s.logs.slice(-(MAX_LOG_LINES - 1)), `[${stamp}] ${line}`] }));
+  };
+
   /** Replace the active tab via a mutator. */
   const updateTab = (fn: (t: SessionTab) => SessionTab) => {
     set((s) => {
@@ -340,11 +352,13 @@ export const useStore = create<Store>((set, get) => {
         updateTab((t) => ({ ...t, notice: null }));
         break;
       case 'pi_error':
+        log(`pi 错误: ${e.message}`);
         set({ status: 'error', error: e.message });
         break;
       case 'pi_exit':
         // Drop every in-flight resolver: nothing will ever answer them.
         pending.clear();
+        log('pi 进程已退出');
         set({ status: 'error', error: 'pi 进程已退出' });
         break;
       default:
@@ -362,6 +376,7 @@ export const useStore = create<Store>((set, get) => {
     tabs: [emptyTab()],
     activeTabIndex: 0,
     settingsOpen: false,
+    logs: [],
 
     init: async () => {
       const installed = await piInstalled().catch(() => false);
@@ -372,8 +387,9 @@ export const useStore = create<Store>((set, get) => {
       if (!subscribed) {
         subscribed = true;
         await onPiEvent(handleEvent);
+        onPiStderr((line) => log(line)).catch(() => undefined);
       }
-      set({ status: 'connecting' });
+      log('正在连接 pi 进程…');
       const state = await rpc({ type: 'get_state' }).catch(() => null);
       if (!state?.success) {
         set({ status: 'error', error: '无法连接 pi 进程' });

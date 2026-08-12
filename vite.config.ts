@@ -29,4 +29,17 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+
+  // Split the heavy markdown/highlight deps out of the main bundle so the
+  // WebView doesn't parse 500KB+ on startup.
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          markdown: ["react-markdown", "remark-gfm", "rehype-highlight", "highlight.js"],
+          tauri: ["@tauri-apps/api", "@tauri-apps/plugin-opener"],
+        },
+      },
+    },
+  },
 }));

@@ -39,3 +39,8 @@ export function listSessions(): Promise<SessionListItem[]> {
 export function onPiEvent(cb: (event: PiEvent) => void): Promise<UnlistenFn> {
   return listen<PiEvent>('pi-event', (ev) => cb(ev.payload));
 }
+
+/** Subscribe to free-form pi stderr logs (provider catalogs, warnings…). */
+export function onPiStderr(cb: (line: string) => void): Promise<UnlistenFn> {
+  return listen<string>('pi-stderr', (ev) => cb(ev.payload));
+}
