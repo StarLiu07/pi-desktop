@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, Manager};
 
 /// Frontend event emitted for every JSONL message pi writes to stdout.
@@ -31,7 +31,17 @@ impl Default for PiState {
 }
 
 /// Locate the pi CLI's JS entry point (`dist/cli.js`) by probing common locations.
+///
+/// `npm root -g` takes ~200ms on Windows and is called on every startup screen
+/// check, so cache a *hit* for the process lifetime. Misses are never cached —
+/// the user may install pi and hit "我已安装，重试".
+static PI_ENTRY: OnceLock<Option<String>> = OnceLock::new();
+
 fn find_pi_entry() -> Option<String> {
+    PI_ENTRY.get_or_init(find_pi_entry_uncached).clone()
+}
+
+fn find_pi_entry_uncached() -> Option<String> {
     // 1. explicit override
     if let Ok(p) = std::env::var("PI_DESKTOP_PI_ENTRY") {
         if Path::new(&p).exists() {
@@ -290,7 +300,16 @@ pub fn list_sessions(_app: AppHandle) -> Result<Vec<SessionMeta>, String> {
         }
         out.push(meta);
     }
-    out.sort_by(|a, b| b.file.cmp(&a.file));
+    // Newest first. File names are uuids, so compare the parsed session
+    // timestamp (line 1 of the file) — fall back to the file name.
+    out.sort_by(|a, b| {
+        let ta = a.timestamp.as_deref().unwrap_or("");
+        let tb = b.timestamp.as_deref().unwrap_or("");
+        if !ta.is_empty() || !tb.is_empty() {
+            return tb.cmp(ta);
+        }
+        b.file.cmp(&a.file)
+    });
     Ok(out)
 }
 

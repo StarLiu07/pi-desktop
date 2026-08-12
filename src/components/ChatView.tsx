@@ -36,7 +36,11 @@ export function ChatView() {
           {tab.notice && <div className="notice">{tab.notice}</div>}
           {tab.willRetry && <div className="retry-note">上次响应已重试，可能部分输出被替换</div>}
           {tab.messages.map((m, i) => (
-            <MessageRow key={i} message={m} toolExecs={tab.toolExecs} />
+            <MessageRow
+              key={m.responseId ?? m.toolCallId ?? `msg-${i}`}
+              message={m}
+              toolExecs={tab.toolExecs}
+            />
           ))}
           {tab.pendingUserText && (
             <div className="message-row user pending">

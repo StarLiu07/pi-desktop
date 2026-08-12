@@ -22,6 +22,9 @@ const nextId = () => `req-${++reqCounter}`;
 /** Resolvers for in-flight RPC requests, keyed by request id. */
 const pending = new Map<string, (resp: RpcResponse) => void>();
 
+/** How long to wait for a response before resolving with success:false. */
+const RPC_TIMEOUT_MS = 30_000;
+
 /** Subscribe to the pi event stream only once, even across retries. */
 let subscribed = false;
 
@@ -97,11 +100,23 @@ function emptyTab(): SessionTab {
   };
 }
 
-/** Send a request and resolve with the matching response. */
+/** Send a request and resolve with the matching response (or a timeout failure). */
 async function rpc(req: Record<string, unknown>): Promise<RpcResponse> {
   const id = nextId();
   const promise = new Promise<RpcResponse>((resolve) => {
     pending.set(id, resolve);
+    // Never hang forever: pi may have crashed between send and response.
+    setTimeout(() => {
+      if (pending.delete(id)) {
+        resolve({
+          id,
+          type: 'response',
+          command: String(req.type),
+          success: false,
+          error: 'RPC 超时：pi 未在 30s 内响应',
+        });
+      }
+    }, RPC_TIMEOUT_MS);
   });
   await sendRpc({ id, ...req }).catch(() => {
     pending.delete(id);
@@ -264,12 +279,46 @@ export const useStore = create<Store>((set, get) => {
           };
         });
         break;
-      case 'turn_end':
-        updateTab((t) => ({ ...t, turnActive: false }));
+      case 'turn_end': {
+        // `message` is already handled by message_start/message_end; the
+        // `toolResults` array is NOT streamed as separate events — append it.
+        updateTab((t) => {
+          const results = Array.isArray(e.toolResults) ? e.toolResults : [];
+          if (results.length === 0) return { ...t, turnActive: false };
+          const seen = new Set(
+            t.messages
+              .filter((m) => m.role === 'toolResult' && m.toolCallId)
+              .map((m) => m.toolCallId),
+          );
+          const fresh = results.filter(
+            (m: ChatMessage) => m.toolCallId && !seen.has(m.toolCallId),
+          );
+          return {
+            ...t,
+            turnActive: false,
+            messages: [...t.messages, ...fresh],
+          };
+        });
         break;
-      case 'agent_end':
-        updateTab((t) => ({ ...t, agentActive: false, willRetry: e.willRetry }));
+      }
+      case 'agent_end': {
+        updateTab((t) => {
+          const snapshot = e.messages;
+          // The event carries the authoritative full message list — use it to
+          // reconcile any drift (retries, tool results). Guard against a
+          // turn-local snapshot replacing a longer session history.
+          const useSnapshot =
+            Array.isArray(snapshot) && snapshot.length >= t.messages.length;
+          return {
+            ...t,
+            agentActive: false,
+            willRetry: e.willRetry,
+            streaming: null,
+            ...(useSnapshot ? { messages: snapshot } : {}),
+          };
+        });
         break;
+      }
       case 'agent_settled':
         updateTab((t) => ({ ...t, agentActive: false }));
         get().refreshSessions();
@@ -294,6 +343,8 @@ export const useStore = create<Store>((set, get) => {
         set({ status: 'error', error: e.message });
         break;
       case 'pi_exit':
+        // Drop every in-flight resolver: nothing will ever answer them.
+        pending.clear();
         set({ status: 'error', error: 'pi 进程已退出' });
         break;
       default:
@@ -371,6 +422,9 @@ export const useStore = create<Store>((set, get) => {
 
     closeTab: (index) => {
       const { tabs, activeTabIndex } = get();
+      const closing = tabs[index];
+      // Never leave the agent running on a session we're about to drop.
+      if (closing?.agentActive) rpc({ type: 'abort' }).catch(() => null);
       if (tabs.length === 1) {
         // Closing the last tab opens a fresh session.
         rpc({ type: 'new_session' }).catch(() => null);
@@ -476,7 +530,13 @@ export const useStore = create<Store>((set, get) => {
         message: text,
         streamingBehavior: 'follow-up',
       }).catch((err: unknown) => {
-        updateTab((t) => ({ ...t, agentActive: false, notice: String(err) }));
+        // Roll back the optimistic user text on failure, not just the spinner.
+        updateTab((t) => ({
+          ...t,
+          agentActive: false,
+          pendingUserText: null,
+          notice: String(err),
+        }));
       });
     },
 
