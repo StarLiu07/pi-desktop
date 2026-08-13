@@ -5,7 +5,6 @@ import { TopBar } from './components/TopBar';
 import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
 import { InputBar } from './components/InputBar';
-import { StatusBar } from './components/StatusBar';
 import { SettingsModal } from './components/SettingsModal';
 
 function ConnectingScreen() {
@@ -113,7 +112,6 @@ export default function App() {
       <TopBar />
       <ChatView />
       <InputBar />
-      <StatusBar />
       <SettingsModal />
     </div>
   );

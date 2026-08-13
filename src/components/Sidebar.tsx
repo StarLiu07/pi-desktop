@@ -2,6 +2,17 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
 import type { SessionListItem } from '../rpc/bridge';
 
+/** localStorage key for collapsed project groups (persists across restarts). */
+const COLLAPSE_KEY = 'pi-desktop.sidebar.collapsed';
+
+function loadCollapsed(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) ?? '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
 function shortTime(ts: string | null): string {
   if (!ts) return '';
   const t = new Date(ts).getTime();
@@ -40,10 +51,24 @@ export function Sidebar() {
   const activeTabIndex = useStore((s) => s.activeTabIndex);
   const openSessionFromHistory = useStore((s) => s.openSessionFromHistory);
   const newSession = useStore((s) => s.newSession);
-  const nameUnnamedSessions = useStore((s) => s.nameUnnamedSessions);
-  const naming = useStore((s) => s.naming);
   const currentProject = useStore((s) => s.currentProject);
   const [filter, setFilter] = useState('');
+  // Collapsed project groups (by cwd key), persisted to localStorage.
+  const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsed);
+
+  const toggleGroup = (key: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next]));
+      } catch {
+        /* storage unavailable (private mode etc.) — collapse still works */
+      }
+      return next;
+    });
+  };
 
   const activeId = tabs[activeTabIndex]?.sessionId;
   const q = filter.trim().toLowerCase();
@@ -83,21 +108,11 @@ export function Sidebar() {
     });
   }, [sessions, q, currentProject]);
 
-  const unnamedCount = sessions.filter((s) => !s.name).length;
-
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
         <span>会话历史</span>
         <div className="sidebar-actions">
-          <button
-            className="name-all"
-            disabled={unnamedCount === 0 || naming}
-            onClick={() => nameUnnamedSessions()}
-            title={unnamedCount === 0 ? '所有会话都已有名字' : `为 ${unnamedCount} 个未命名会话生成名字`}
-          >
-            {naming ? '命名中…' : `✨ AI 命名${unnamedCount > 0 ? ` ${unnamedCount}` : ''}`}
-          </button>
           <button onClick={() => newSession()} title="新建会话">
             +
           </button>
@@ -137,26 +152,33 @@ export function Sidebar() {
           groups.map((g) => (
             <div key={g.key} className="session-group">
               <div
-                className={`session-group-label${g.isCurrent ? ' current' : ''}`}
-                title={g.path}
+                className={`session-group-label${g.isCurrent ? ' current' : ''}${
+                  collapsed.has(g.key) ? ' collapsed' : ''
+                }`}
+                title={collapsed.has(g.key) ? `${g.path}\n点击展开会话列表` : `${g.path}\n点击折叠会话列表`}
+                role="button"
+                aria-expanded={!collapsed.has(g.key)}
+                onClick={() => toggleGroup(g.key)}
               >
+                <span className="chev">{collapsed.has(g.key) ? '▸' : '▾'}</span>
                 <span className="icon">📁</span>
                 <span className="label">{g.label}</span>
                 {g.isCurrent && <span className="cur">当前</span>}
                 <span className="count">{g.items.length}</span>
               </div>
-              {g.items.map((s) => (
-                <div
-                  key={s.id}
-                  className={`session-item grouped ${s.id === activeId ? 'active' : ''}`}
-                  onClick={() => openSessionFromHistory(s)}
-                  title={s.cwd ?? s.file}
-                >
-                  <span className="dot" />
-                  <span className="name">{s.name ?? s.preview ?? s.file}</span>
-                  <span className="meta">{shortTime(s.timestamp)}</span>
-                </div>
-              ))}
+              {!collapsed.has(g.key) &&
+                g.items.map((s) => (
+                  <div
+                    key={s.id}
+                    className={`session-item grouped ${s.id === activeId ? 'active' : ''}`}
+                    onClick={() => openSessionFromHistory(s)}
+                    title={s.cwd ?? s.file}
+                  >
+                    <span className="dot" />
+                    <span className="name">{s.name ?? s.preview ?? s.file}</span>
+                    <span className="meta">{shortTime(s.timestamp)}</span>
+                  </div>
+                ))}
             </div>
           ))
         )}

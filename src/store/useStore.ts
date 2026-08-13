@@ -97,8 +97,6 @@ interface Store {
   closeTab(index: number): void;
   activateTab(index: number): Promise<void>;
   renameActiveSession(name: string): Promise<void>;
-  /** Generate names for every session without one (sidebar button). */
-  nameUnnamedSessions(): Promise<void>;
   /** Name just the active session after its first turn (agent_settled). */
   maybeAutoNameActiveSession(): Promise<void>;
   /** Merge naming results into sessions and matching tabs. */
@@ -611,16 +609,6 @@ export const useStore = create<Store>((set, get) => {
       set((s) => ({
         tabs: s.tabs.map((t) => (t.sessionPath && byPath.has(t.sessionPath) ? { ...t, name: byPath.get(t.sessionPath)! } : t)),
       }));
-    },
-
-    nameUnnamedSessions: async () => {
-      if (get().naming) return;
-      const paths = get().sessions.filter((s) => !s.name).map((s) => s.path);
-      if (paths.length === 0) return;
-      set({ naming: true });
-      const results = await nameSessions(paths).catch(() => null);
-      set({ naming: false });
-      if (results) get().applyNames(results);
     },
 
     maybeAutoNameActiveSession: async () => {

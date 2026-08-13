@@ -3,6 +3,18 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.13] - 2026-08-13
+
+### Features
+- 底部输入面板一体化（ZCode 风格）：项目选择器、思考强度、模型选择器全部并入输入面板
+  - 项目选择器从顶栏移入输入面板顶部工具行，与输入框共用一个圆角边框
+  - 模型/思考强度选择器移至输入行内、发送键左侧（⚡ 强度 + 模型名），原底部状态栏移除
+- 侧边栏会话分组可折叠：点击项目分组标题（📁）折叠/展开其下会话，折叠状态持久化于
+  localStorage（`pi-desktop.sidebar.collapsed`），重启后保持
+
+### Changed
+- 移除侧边栏「✨ AI 命名」批量命名按钮（新会话首轮后自动命名 `maybeAutoNameActiveSession` 保留）
+
 ## [0.1.12] - 2026-08-13
 
 ### Features

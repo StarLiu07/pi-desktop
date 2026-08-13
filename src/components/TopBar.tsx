@@ -1,15 +1,6 @@
 import { useStore } from '../store/useStore';
-import { Selector, type SelectorOption } from './Selector';
 
-/** Magic option value: open the native folder picker instead of selecting. */
-const PICK_PROJECT = '__pick_folder__';
-
-/** Last path segment of an absolute path (`D:\a\b` → `b`). */
-function baseName(path: string): string {
-  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
-}
-
-/** OpenCode-style top bar: brand mark, project picker, session tabs, and connection/settings controls. */
+/** OpenCode-style top bar: brand mark, session tabs, and connection/settings controls. */
 export function TopBar() {
   const tabs = useStore((s) => s.tabs);
   const activeTabIndex = useStore((s) => s.activeTabIndex);
@@ -20,34 +11,6 @@ export function TopBar() {
   const renameActiveSession = useStore((s) => s.renameActiveSession);
   const status = useStore((s) => s.status);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
-  const currentProject = useStore((s) => s.currentProject);
-  const recentProjects = useStore((s) => s.recentProjects);
-  const setProject = useStore((s) => s.setProject);
-  const pickProject = useStore((s) => s.pickProject);
-
-  const projectOptions: SelectorOption[] = [
-    {
-      value: '',
-      label: '无项目',
-      hint: '对话不绑定文件夹',
-    },
-    ...recentProjects.map((p) => ({
-      value: p,
-      label: baseName(p),
-      hint: p,
-      group: '最近项目',
-    })),
-    {
-      value: PICK_PROJECT,
-      label: '选择其他文件夹…',
-      hint: '打开系统目录选择器',
-    },
-  ];
-
-  const onProjectChange = (v: string) => {
-    if (v === PICK_PROJECT) pickProject();
-    else setProject(v);
-  };
 
   const rename = (index: number) => {
     const t = tabs[index];
@@ -64,24 +27,6 @@ export function TopBar() {
         <span className="logo-mark">π</span>
         <span className="logo-name">PI</span>
       </div>
-      <Selector
-        className="project-select"
-        options={projectOptions}
-        value={currentProject ?? ''}
-        onChange={onProjectChange}
-        title={currentProject ? `项目：${currentProject}` : '无项目（对话不绑定文件夹）'}
-        openUp={false}
-      >
-        <span className="sel-icon">📁</span>
-        <span className="sel-name">
-          {/* 「无项目」 vs 「选择项目」:recent 非空说明用户主动切到无项目 */}
-          {currentProject
-            ? baseName(currentProject)
-            : recentProjects.length > 0
-              ? '无项目'
-              : '选择项目'}
-        </span>
-      </Selector>
       <nav className="tab-strip">
         {tabs.map((t, i) => (
           <div
