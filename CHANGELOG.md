@@ -3,6 +3,13 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.10] - 2026-08-13
+
+### UX
+- 应用/任务栏图标重绘：暗色圆角方底 + 官方 Pi 标识（peach 强调色），
+  几何直接取自 pi.dev 的 logo SVG；`tauri icon` 重新生成全套尺寸
+  （源文件 `src-tauri/icons/icon-source.png` + `make-icon.py`，可复现）
+
 ## [0.1.9] - 2026-08-13
 
 ### Features
