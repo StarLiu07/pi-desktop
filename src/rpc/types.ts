@@ -21,6 +21,8 @@ export interface ModelInfo {
   cost?: ModelCost;
   contextWindow?: number;
   maxTokens?: number;
+  /** thinking level → provider mapping; a null value means unsupported by this model */
+  thinkingLevelMap?: Record<string, string | null>;
 }
 
 export interface Usage {

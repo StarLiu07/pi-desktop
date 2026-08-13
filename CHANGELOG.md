@@ -3,6 +3,18 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.11] - 2026-08-13
+
+### UX
+- 状态栏模型/思考强度切换重做（参考 opencode 底栏 + codex 弹出面板风格）：
+  - 去掉原生 `<select>` 与「思考」「模型」标签，改为紧凑的 value-first 触发器
+    `⚡ high ▾` / `DeepSeek V4 Flash ▾`
+  - 自定义弹出菜单：向上弹出、按 provider 分组、当前项 peach ✓ 标记、
+    中文等级释义（关闭/极少/…/最大）、Esc/方向键/回车键盘操作、点击外部关闭
+  - 思考强度按当前模型能力适配：`reasoning: false` 的模型（图像模型等）控件禁用；
+    有 `thinkingLevelMap` 的模型（deepseek 系）菜单中不支持的等级置灰并标注
+    「当前模型不支持」
+
 ## [0.1.10] - 2026-08-13
 
 ### UX
