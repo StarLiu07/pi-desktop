@@ -20,21 +20,36 @@ export function Sidebar() {
   const activeTabIndex = useStore((s) => s.activeTabIndex);
   const openSessionFromHistory = useStore((s) => s.openSessionFromHistory);
   const newSession = useStore((s) => s.newSession);
+  const nameUnnamedSessions = useStore((s) => s.nameUnnamedSessions);
+  const naming = useStore((s) => s.naming);
   const [filter, setFilter] = useState('');
 
   const activeId = tabs[activeTabIndex]?.sessionId;
   const q = filter.trim().toLowerCase();
   const visible = q
-    ? sessions.filter((s) => `${s.name ?? ''} ${s.file}`.toLowerCase().includes(q))
+    ? sessions.filter((s) =>
+        `${s.name ?? ''} ${s.preview ?? ''} ${s.file}`.toLowerCase().includes(q),
+      )
     : sessions;
+  const unnamedCount = sessions.filter((s) => !s.name).length;
 
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
         <span>会话历史</span>
-        <button onClick={() => newSession()} title="新建会话">
-          +
-        </button>
+        <div className="sidebar-actions">
+          <button
+            className="name-all"
+            disabled={unnamedCount === 0 || naming}
+            onClick={() => nameUnnamedSessions()}
+            title={unnamedCount === 0 ? '所有会话都已有名字' : `为 ${unnamedCount} 个未命名会话生成名字`}
+          >
+            {naming ? '命名中…' : `✨ AI 命名${unnamedCount > 0 ? ` ${unnamedCount}` : ''}`}
+          </button>
+          <button onClick={() => newSession()} title="新建会话">
+            +
+          </button>
+        </div>
       </div>
       <input
         className="sidebar-search"
@@ -57,7 +72,7 @@ export function Sidebar() {
               title={s.cwd ?? s.file}
             >
               <span className="dot" />
-              <span className="name">{s.name ?? s.file}</span>
+              <span className="name">{s.name ?? s.preview ?? s.file}</span>
               <span className="meta">{shortTime(s.timestamp)}</span>
             </div>
           ))

@@ -6,12 +6,20 @@ import type { PiEvent } from './types';
 export interface SessionListItem {
   id: string;
   name: string | null;
+  /** Display fallback for unnamed sessions (first user message, truncated). */
+  preview: string | null;
   timestamp: string | null;
   cwd: string | null;
   message_count: number;
   file: string;
   path: string;
   last_message_id: string | null;
+}
+
+export interface NameResult {
+  path: string;
+  name: string | null;
+  error: string | null;
 }
 
 /** Send one JSONL request object to the pi subprocess. */
@@ -33,6 +41,12 @@ export function piInstalled(): Promise<boolean> {
 
 export function listSessions(): Promise<SessionListItem[]> {
   return invoke('list_sessions');
+}
+
+/** Generate display names for the given session files (uses the pi default
+ *  model via a Node helper; already-named sessions are skipped). */
+export function nameSessions(paths: string[]): Promise<NameResult[]> {
+  return invoke('name_sessions', { paths });
 }
 
 /** Subscribe to the pi event stream. Returns an unlisten function. */

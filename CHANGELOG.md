@@ -3,6 +3,22 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.9] - 2026-08-13
+
+### Features
+- 会话 AI 命名：新会话首轮对话结束自动生成标题；侧边栏「✨ AI 命名」一键为
+  历史会话批量生成名字（复用 pi 默认模型 deepseek-v4-flash 及现有提供商配置，
+  经 Node helper 走 pi 的 ModelRuntime；未命名会话先显示首条消息预览，不再是一串
+  时间戳文件名）
+- 会话名解析与 pi 一致：取最新一条 `session_info`（重命名后历史列表立即同步）
+
+### Fixed
+- 历史会话点击后加载不出消息（两处根因）：
+  - 直接追加进会话文件的 `session_info` 记录必须带 `parentId`（链到当前叶子
+    记录的 id），否则会断开 pi 的消息上下文链，`get_messages` 返回空
+  - `openSessionFromHistory` 预先设置 `activeTabIndex` 导致 `activateTab` 的
+    "已在同一会话"守卫误判，`switch_session` / `get_messages` 被跳过
+
 ## [0.1.8] - 2026-08-13
 
 ### Features

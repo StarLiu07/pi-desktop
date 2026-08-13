@@ -6,10 +6,12 @@
 //! - events:    `{"type": <event_name>, ...}` streamed on stdout
 
 use serde_json::{json, Value};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
 
 /// Frontend event emitted for every JSONL message pi writes to stdout.
@@ -275,6 +277,10 @@ pub fn pi_installed() -> bool {
 pub struct SessionMeta {
     pub id: String,
     pub name: Option<String>,
+    /// Display fallback for unnamed sessions: the first user message text,
+    /// normalized and truncated. Never persisted — the sidebar shows
+    /// `name ?? preview ?? file`.
+    pub preview: Option<String>,
     pub timestamp: Option<String>,
     pub cwd: Option<String>,
     pub message_count: usize,
@@ -285,6 +291,163 @@ pub struct SessionMeta {
     pub path: String,
     /// Last USER `message` record id — the `entryId` for the `fork` RPC command.
     pub last_message_id: Option<String>,
+}
+
+/// Last non-empty `session_info` name in a session file. pi's `getSessionName`
+/// treats the latest entry as canonical (an empty name is ignored), so a rename
+/// appends a second entry and must win over the first.
+fn session_name_of(content: &str) -> Option<String> {
+    let mut name: Option<String> = None;
+    for line in content.lines() {
+        let Ok(v) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        if v.get("type").and_then(|t| t.as_str()) == Some("session_info") {
+            if let Some(n) = v.get("name").and_then(|n| n.as_str()) {
+                let t = n.trim();
+                if !t.is_empty() {
+                    name = Some(t.to_string());
+                }
+            }
+        }
+    }
+    name
+}
+
+/// Text of the first USER message (text content parts joined with spaces),
+/// used as the display preview and as input for LLM naming.
+fn first_user_text(content: &str) -> Option<String> {
+    for line in content.lines() {
+        let Ok(v) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        if v.get("type").and_then(|t| t.as_str()) != Some("message") {
+            continue;
+        }
+        let msg = v.get("message")?;
+        if msg.get("role").and_then(|r| r.as_str()) != Some("user") {
+            continue;
+        }
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(content) = msg.get("content").and_then(|c| c.as_array()) {
+            for part in content {
+                if let Some(t) = part.get("text").and_then(|t| t.as_str()) {
+                    parts.push(t.to_string());
+                }
+            }
+        }
+        if !parts.is_empty() {
+            return Some(parts.join(" "));
+        }
+    }
+    None
+}
+
+/// Collapse whitespace (newlines included) to single spaces and truncate to
+/// `max` chars with an ellipsis.
+fn preview_of(text: &str, max: usize) -> String {
+    let mut normalized = String::with_capacity(text.len());
+    let mut prev_space = false;
+    for c in text.chars() {
+        if c.is_whitespace() {
+            if !prev_space {
+                normalized.push(' ');
+            }
+            prev_space = true;
+        } else {
+            normalized.push(c);
+            prev_space = false;
+        }
+    }
+    let trimmed = normalized.trim();
+    let mut out: String = trimmed.chars().take(max).collect();
+    if trimmed.chars().count() > max {
+        out.push('…');
+    }
+    out
+}
+
+/// Parse one session file into metadata: header (line 1), last session_info
+/// name, first user text preview, last user message id (for fork), message
+/// count. One pass over the records.
+fn parse_session(content: &str, file: String, path: String) -> SessionMeta {
+    let mut meta = SessionMeta {
+        id: file.trim_end_matches(".jsonl").to_string(),
+        name: None,
+        preview: None,
+        timestamp: None,
+        cwd: None,
+        message_count: 0,
+        path,
+        file,
+        last_message_id: None,
+    };
+    let mut first_text: Option<String> = None;
+    for (i, line) in content.lines().enumerate() {
+        if i == 0 {
+            if let Ok(v) = serde_json::from_str::<Value>(line) {
+                if let Some(id) = v.get("id").and_then(|i| i.as_str()) {
+                    meta.id = id.to_string();
+                }
+                if let Some(ts) = v.get("timestamp").and_then(|t| t.as_str()) {
+                    meta.timestamp = Some(ts.to_string());
+                }
+                if let Some(cwd) = v.get("cwd").and_then(|c| c.as_str()) {
+                    meta.cwd = Some(cwd.to_string());
+                }
+            }
+            continue;
+        }
+        let Ok(v) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        match v.get("type").and_then(|t| t.as_str()) {
+            Some("session_info") => {
+                // pi keeps the LATEST name (an empty one is ignored) — do the
+                // same so a rename is reflected here, not just in the tab.
+                if let Some(n) = v.get("name").and_then(|n| n.as_str()) {
+                    let t = n.trim();
+                    if !t.is_empty() {
+                        meta.name = Some(t.to_string());
+                    }
+                }
+            }
+            Some("message") => {
+                let msg = v.get("message");
+                let is_user = msg.and_then(|m| m.get("role")).and_then(|r| r.as_str()) == Some("user");
+                if is_user {
+                    // fork's entryId must be the last USER message id
+                    // (the branch point), not an assistant reply.
+                    if let Some(id) = v.get("id").and_then(|i| i.as_str()) {
+                        meta.last_message_id = Some(id.to_string());
+                    }
+                    if first_text.is_none() {
+                        first_text = msg.and_then(text_parts);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    meta.preview = first_text.map(|t| preview_of(&t, 40));
+    meta.message_count = content.lines().count().saturating_sub(1);
+    meta
+}
+
+/// Concatenate the `text` parts of a message's content array.
+fn text_parts(msg: &Value) -> Option<String> {
+    let content = msg.get("content")?.as_array()?;
+    let mut parts: Vec<String> = Vec::new();
+    for part in content {
+        if let Some(t) = part.get("text").and_then(|t| t.as_str()) {
+            parts.push(t.to_string());
+        }
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(" "))
+    }
 }
 
 /// List all session files in the desktop session dir, newest first.
@@ -308,65 +471,8 @@ pub fn list_sessions(_app: AppHandle) -> Result<Vec<SessionMeta>, String> {
         if !file.ends_with(".jsonl") {
             continue;
         }
-        let mut meta = SessionMeta {
-            id: file.trim_end_matches(".jsonl").to_string(),
-            name: None,
-            timestamp: None,
-            cwd: None,
-            message_count: 0,
-            path: path.to_string_lossy().to_string(),
-            file,
-            last_message_id: None,
-        };
-        if let Ok(content) = std::fs::read_to_string(&path) {
-            // One pass over the records: session meta (line 1), display name
-            // (session_info), last message id (for fork), and message count.
-            let mut seen_info = false;
-            for (i, line) in content.lines().enumerate() {
-                if i == 0 {
-                    if let Ok(v) = serde_json::from_str::<Value>(line) {
-                        if let Some(id) = v.get("id").and_then(|i| i.as_str()) {
-                            meta.id = id.to_string();
-                        }
-                        if let Some(ts) = v.get("timestamp").and_then(|t| t.as_str()) {
-                            meta.timestamp = Some(ts.to_string());
-                        }
-                        if let Some(cwd) = v.get("cwd").and_then(|c| c.as_str()) {
-                            meta.cwd = Some(cwd.to_string());
-                        }
-                    }
-                    continue;
-                }
-                if let Ok(v) = serde_json::from_str::<Value>(line) {
-                    let kind = v.get("type").and_then(|t| t.as_str());
-                    match kind {
-                        Some("session_info") if !seen_info => {
-                            seen_info = true;
-                            if let Some(n) = v.get("name").and_then(|n| n.as_str()) {
-                                meta.name = Some(n.to_string());
-                            }
-                        }
-                        Some("message") => {
-                            // fork's entryId must be the last USER message id
-                            // (the branch point), not an assistant reply.
-                            let is_user = v
-                                .get("message")
-                                .and_then(|m| m.get("role"))
-                                .and_then(|r| r.as_str())
-                                == Some("user");
-                            if is_user {
-                                if let Some(id) = v.get("id").and_then(|i| i.as_str()) {
-                                    meta.last_message_id = Some(id.to_string());
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            meta.message_count = content.lines().count().saturating_sub(1);
-        }
-        out.push(meta);
+        let content = std::fs::read_to_string(&path).unwrap_or_default();
+        out.push(parse_session(&content, file, path.to_string_lossy().to_string()));
     }
     // Newest first. File names are uuids, so compare the parsed session
     // timestamp (line 1 of the file) — fall back to the file name.
@@ -379,6 +485,243 @@ pub fn list_sessions(_app: AppHandle) -> Result<Vec<SessionMeta>, String> {
         b.file.cmp(&a.file)
     });
     Ok(out)
+}
+
+/// Result of naming one session file.
+#[derive(serde::Serialize)]
+pub struct NameResult {
+    pub path: String,
+    pub name: Option<String>,
+    pub error: Option<String>,
+}
+
+/// Truncate to `max` chars with an ellipsis (naming input; the model only
+/// needs the gist of the first message).
+fn truncate_chars(text: &str, max: usize) -> String {
+    if text.chars().count() <= max {
+        return text.to_string();
+    }
+    let mut s: String = text.chars().take(max).collect();
+    s.push('…');
+    s
+}
+
+/// 8-hex-char entry id in pi's style (time ^ pid ^ counter), checked against
+/// the file before use.
+fn new_entry_id() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    let v = (nanos as u64) ^ ((std::process::id() as u64) << 16) ^ ((COUNTER.fetch_add(1, Ordering::Relaxed) as u64) << 8);
+    format!("{:08x}", v & 0xffff_ffff)
+}
+
+/// ISO-8601 UTC timestamp with milliseconds, matching pi's session entries
+/// (e.g. `2026-07-22T12:39:14.734Z`). No chrono dependency — civil-from-days.
+fn iso_now() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+    let secs = now.as_secs() as i64;
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    let (h, mi, s) = (rem / 3600, (rem % 3600) / 60, rem % 60);
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = era * 400 + yoe + if m <= 2 { 1 } else { 0 };
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
+        y, m, d, h, mi, s, now.subsec_millis()
+    )
+}
+
+/// Append a `session_info` entry to a session file — the exact shape pi's
+/// `set_session_name` writes — so the name shows up in the desktop history
+/// and (on next load) in the pi CLI alike. Appended directly, without going
+/// through the live pi process.
+///
+/// The entry must attach to the current leaf: pi builds the message context
+/// by walking `parentId` up from the last entry, so a `parentId: null` entry
+/// at the end of the file would detach the whole message chain and make
+/// `get_messages` return nothing.
+fn append_session_info(path: &Path, name: &str) -> Result<(), String> {
+    let sanitized: String = name.chars().filter(|c| *c != '\r' && *c != '\n').collect();
+    let sanitized = sanitized.trim().to_string();
+    if sanitized.is_empty() {
+        return Err("空名称".to_string());
+    }
+    let content = std::fs::read_to_string(path).unwrap_or_default();
+    let mut id = new_entry_id();
+    while content.contains(&format!("\"id\":\"{}\"", id)) {
+        id = new_entry_id();
+    }
+    // Attach to the current leaf (last entry in file order), like pi's
+    // appendSessionInfo — null only when the file has no entries yet.
+    let parent_id = content
+        .lines()
+        .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+        .filter_map(|v| v.get("id").and_then(|i| i.as_str()).map(|s| s.to_string()))
+        .last();
+    let entry = json!({
+        "type": "session_info",
+        "id": id,
+        "parentId": parent_id,
+        "timestamp": iso_now(),
+        "name": sanitized,
+    });
+    let line = serde_json::to_string(&entry).map_err(|e| e.to_string())?;
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(path)
+        .map_err(|e| format!("打开 {} 失败: {}", path.display(), e))?;
+    writeln!(file, "{}", line).map_err(|e| format!("写入 {} 失败: {}", path.display(), e))
+}
+
+/// Materialize the embedded naming helper (Node, ESM) into the temp dir and
+/// return its path. The helper drives pi's own ModelRuntime, so it must run
+/// with the same Node that runs the pi CLI.
+fn write_naming_helper() -> Result<std::path::PathBuf, String> {
+    let path = std::env::temp_dir().join("pi-desktop-naming-helper.mjs");
+    std::fs::write(&path, include_str!("../naming-helper.mjs"))
+        .map_err(|e| format!("写入命名助手失败: {}", e))?;
+    Ok(path)
+}
+
+/// Generate display names for the given session files using the pi default
+/// model (spawns one Node process running the embedded helper, which reuses
+/// pi's provider/auth config). Sessions that already have a `session_info`
+/// name are skipped. The name is appended straight into the session JSONL.
+#[tauri::command]
+pub async fn name_sessions(_app: AppHandle, paths: Vec<String>) -> Result<Vec<NameResult>, String> {
+    let mut items: Vec<(String, String)> = Vec::new(); // (path, first user text)
+    let mut results: Vec<NameResult> = Vec::new();
+    for path in &paths {
+        let p = Path::new(path);
+        let content = match std::fs::read_to_string(p) {
+            Ok(c) => c,
+            Err(e) => {
+                results.push(NameResult {
+                    path: path.clone(),
+                    name: None,
+                    error: Some(format!("读取失败: {}", e)),
+                });
+                continue;
+            }
+        };
+        if let Some(existing) = session_name_of(&content) {
+            results.push(NameResult { path: path.clone(), name: Some(existing), error: None });
+            continue;
+        }
+        match first_user_text(&content) {
+            Some(t) if !t.trim().is_empty() => items.push((path.clone(), truncate_chars(&t, 500))),
+            _ => results.push(NameResult {
+                path: path.clone(),
+                name: None,
+                error: Some("会话中没有用户消息".to_string()),
+            }),
+        }
+    }
+    if items.is_empty() {
+        return Ok(results);
+    }
+
+    let entry = find_pi_entry().ok_or("未找到 pi CLI".to_string())?;
+    let helper = write_naming_helper()?;
+    let payload = json!({
+        "items": items.iter().map(|(p, t)| json!({"path": p, "text": t})).collect::<Vec<_>>()
+    });
+
+    #[cfg(windows)]
+    let mut child = {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let mut c = Command::new("node");
+        c.creation_flags(CREATE_NO_WINDOW);
+        c
+    };
+    #[cfg(not(windows))]
+    let mut child = Command::new("node");
+
+    let mut child = child
+        .arg(&helper)
+        .arg(&entry)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("启动命名助手失败: {}", e))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        let line = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
+        let _ = stdin.write_all(line.as_bytes()).and_then(|_| stdin.flush());
+        drop(stdin); // EOF signals the helper to start
+    }
+    let stdout = child.stdout.take().ok_or("无法捕获命名助手输出")?;
+    let stderr = child.stderr.take().ok_or("无法捕获命名助手错误")?;
+    let out_reader = std::thread::spawn(move || {
+        let mut s = String::new();
+        let _ = BufReader::new(stdout).read_to_string(&mut s);
+        s
+    });
+    let err_reader = std::thread::spawn(move || {
+        let mut s = String::new();
+        let _ = BufReader::new(stderr).read_to_string(&mut s);
+        s
+    });
+
+    // Overall deadline: the helper bounds each model call to 30s, so a batch
+    // of N files takes at most ~N/3*30s; 120s is a safe ceiling.
+    let deadline = Instant::now() + Duration::from_secs(120);
+    let status = loop {
+        if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
+            break status;
+        }
+        if Instant::now() > deadline {
+            let _ = child.kill();
+            return Err("命名超时".to_string());
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    let stdout_text = out_reader.join().unwrap_or_default();
+    let err_text = err_reader.join().unwrap_or_default();
+    if !status.success() {
+        return Err(format!("命名助手失败: {}", err_text.trim()));
+    }
+
+    let named: Vec<(String, String)> = serde_json::from_str::<Value>(&stdout_text)
+        .ok()
+        .and_then(|v| v.get("results").cloned())
+        .and_then(|r| r.as_array().cloned())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|r| {
+                    let path = r.get("path")?.as_str()?.to_string();
+                    let title = r.get("title")?.as_str()?.trim().to_string();
+                    if title.is_empty() {
+                        None
+                    } else {
+                        Some((path, title))
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    for (path, title) in named {
+        if let Err(e) = append_session_info(Path::new(&path), &title) {
+            results.push(NameResult { path: path.clone(), name: None, error: Some(e) });
+        } else {
+            results.push(NameResult { path, name: Some(title), error: None });
+        }
+    }
+    Ok(results)
 }
 
 #[cfg(test)]

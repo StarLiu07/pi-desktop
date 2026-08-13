@@ -12,7 +12,8 @@ pub fn run() {
             pi::send_rpc,
             pi::stop_pi,
             pi::pi_installed,
-            pi::list_sessions
+            pi::list_sessions,
+            pi::name_sessions
         ])
         .setup(|app| {
             // Boot the pi subprocess together with the window.

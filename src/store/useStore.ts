@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import {
   listSessions,
+  nameSessions,
   onPiEvent,
   onPiStderr,
   piInstalled,
@@ -73,6 +74,8 @@ interface Store {
   settingsOpen: boolean;
   /** pi stderr + lifecycle log lines, newest last */
   logs: string[];
+  /** an AI naming run is in flight (batch or auto) */
+  naming: boolean;
 
   init(): Promise<void>;
   refreshSessions(): Promise<void>;
@@ -82,6 +85,12 @@ interface Store {
   closeTab(index: number): void;
   activateTab(index: number): Promise<void>;
   renameActiveSession(name: string): Promise<void>;
+  /** Generate names for every session without one (sidebar button). */
+  nameUnnamedSessions(): Promise<void>;
+  /** Name just the active session after its first turn (agent_settled). */
+  maybeAutoNameActiveSession(): Promise<void>;
+  /** Merge naming results into sessions and matching tabs. */
+  applyNames(results: Array<{ path: string; name: string | null }>): void;
   sendPrompt(text: string): Promise<void>;
   abort(): Promise<void>;
   setModel(modelId: string): Promise<void>;
@@ -334,6 +343,8 @@ export const useStore = create<Store>((set, get) => {
       case 'agent_settled':
         updateTab((t) => ({ ...t, agentActive: false }));
         get().refreshSessions();
+        // New conversation: give the session a real title after the first turn.
+        get().maybeAutoNameActiveSession();
         break;
       case 'session_info_changed':
         if (e.name) {
@@ -377,6 +388,7 @@ export const useStore = create<Store>((set, get) => {
     activeTabIndex: 0,
     settingsOpen: false,
     logs: [],
+    naming: false,
 
     init: async () => {
       const installed = await piInstalled().catch(() => false);
@@ -502,12 +514,13 @@ export const useStore = create<Store>((set, get) => {
         ...emptyTab(),
         sessionId: sess.id,
         sessionPath: sess.path,
-        name: sess.name ?? sess.file,
+        name: sess.name ?? sess.preview ?? sess.file,
       };
-      set((s) => {
-        const next = [...s.tabs, tab];
-        return { tabs: next, activeTabIndex: next.length - 1 };
-      });
+      // Do NOT pre-set activeTabIndex here: activateTab's "already on this
+      // session" guard compares against the current active tab, and a fresh
+      // tab always matches itself — the switch_session/get_messages load
+      // would be skipped and the chat would stay empty.
+      set((s) => ({ tabs: [...s.tabs, tab] }));
       await get().activateTab(tabs.length);
     },
 
@@ -537,6 +550,38 @@ export const useStore = create<Store>((set, get) => {
 
     renameActiveSession: async (name) => {
       await rpc({ type: 'set_session_name', name }).catch(() => null);
+    },
+
+    /** Apply naming results to the session list and any matching open tabs. */
+    applyNames: (results: Array<{ path: string; name: string | null }>) => {
+      const byPath = new Map(results.filter((r) => r.name).map((r) => [r.path, r.name as string]));
+      if (byPath.size === 0) return;
+      set({ sessions: get().sessions.map((s) => (byPath.has(s.path) ? { ...s, name: byPath.get(s.path)! } : s)) });
+      set((s) => ({
+        tabs: s.tabs.map((t) => (t.sessionPath && byPath.has(t.sessionPath) ? { ...t, name: byPath.get(t.sessionPath)! } : t)),
+      }));
+    },
+
+    nameUnnamedSessions: async () => {
+      if (get().naming) return;
+      const paths = get().sessions.filter((s) => !s.name).map((s) => s.path);
+      if (paths.length === 0) return;
+      set({ naming: true });
+      const results = await nameSessions(paths).catch(() => null);
+      set({ naming: false });
+      if (results) get().applyNames(results);
+    },
+
+    maybeAutoNameActiveSession: async () => {
+      if (get().naming) return;
+      const tab = get().tabs[get().activeTabIndex];
+      if (!tab?.sessionPath) return;
+      // Skip when the session already carries a real name in the tree.
+      if (get().sessions.find((s) => s.path === tab.sessionPath)?.name) return;
+      set({ naming: true });
+      const results = await nameSessions([tab.sessionPath]).catch(() => null);
+      set({ naming: false });
+      if (results) get().applyNames(results);
     },
 
     sendPrompt: async (text) => {
