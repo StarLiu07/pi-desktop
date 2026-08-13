@@ -1,0 +1,3 @@
+{"type":"session","version":3,"id":"bbbb0001","timestamp":"2026-08-02T09:00:00.000Z","cwd":"C:\\Users\\Sheldon"}
+{"type":"session_info","id":"bbbb0002","parentId":"bbbb0001","timestamp":"2026-08-02T09:00:01.000Z","name":"周末出行计划"}
+{"type":"message","id":"bbbb0003","parentId":"bbbb0002","timestamp":"2026-08-02T09:00:02.000Z","message":{"role":"user","content":[{"type":"text","text":"帮我整理一下周末去郊区的安排"}]}}

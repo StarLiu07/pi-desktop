@@ -22,6 +22,12 @@ export interface NameResult {
   error: string | null;
 }
 
+/** Current project + recent projects (absolute folder paths). */
+export interface ProjectsState {
+  current: string | null;
+  recent: string[];
+}
+
 /** Send one JSONL request object to the pi subprocess. */
 export function sendRpc(request: Record<string, unknown>): Promise<void> {
   return invoke('send_rpc', { request });
@@ -47,6 +53,21 @@ export function listSessions(): Promise<SessionListItem[]> {
  *  model via a Node helper; already-named sessions are skipped). */
 export function nameSessions(paths: string[]): Promise<NameResult[]> {
   return invoke('name_sessions', { paths });
+}
+
+/** Current project + recent projects. */
+export function listProjects(): Promise<ProjectsState> {
+  return invoke('list_projects');
+}
+
+/** Switch the project: persists it and restarts pi with the new cwd. */
+export function setProject(dir: string): Promise<null> {
+  return invoke('set_project', { dir });
+}
+
+/** Native folder picker; resolves null when cancelled. */
+export function pickProject(): Promise<string | null> {
+  return invoke('pick_project');
 }
 
 /** Subscribe to the pi event stream. Returns an unlisten function. */

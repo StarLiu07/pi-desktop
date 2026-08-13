@@ -22,8 +22,12 @@ interface SelectorProps {
   onChange: (value: string) => void;
   disabled?: boolean;
   title?: string;
+  /** extra class for the wrapper (e.g. topbar variants) */
+  className?: string;
   /** align the menu's right edge with the trigger (for right-side bars) */
   alignRight?: boolean;
+  /** open the menu downward instead of upward (statusbar vs topbar) */
+  openUp?: boolean;
 }
 
 export function Selector({
@@ -33,7 +37,9 @@ export function Selector({
   onChange,
   disabled,
   title,
+  className,
   alignRight,
+  openUp = true,
 }: SelectorProps) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -107,7 +113,7 @@ export function Selector({
   });
 
   return (
-    <div className="selector" ref={rootRef}>
+    <div className={`selector${className ? ` ${className}` : ''}`} ref={rootRef}>
       <button
         type="button"
         className="status-select"
@@ -123,7 +129,9 @@ export function Selector({
       </button>
       {open && (
         <div
-          className={`selector-menu${alignRight ? ' align-right' : ''}`}
+          className={`selector-menu${alignRight ? ' align-right' : ''}${
+            openUp ? '' : ' menu-down'
+          }`}
           role="listbox"
         >
           {rows.length === 0 && <div className="selector-empty">暂无可用选项</div>}

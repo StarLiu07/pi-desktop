@@ -1,4 +1,5 @@
 mod pi;
+mod project;
 
 use tauri::Emitter;
 
@@ -13,7 +14,10 @@ pub fn run() {
             pi::stop_pi,
             pi::pi_installed,
             pi::list_sessions,
-            pi::name_sessions
+            pi::name_sessions,
+            project::list_projects,
+            project::set_project,
+            project::pick_project
         ])
         .setup(|app| {
             // Boot the pi subprocess together with the window.

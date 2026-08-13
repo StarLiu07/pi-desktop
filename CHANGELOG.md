@@ -3,6 +3,22 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.12] - 2026-08-13
+
+### Features
+- 项目（工作目录）功能，参考 ZCode/Codex：顶栏 logo 旁新增项目选择器
+  - 项目 = pi 子进程的工作目录：切换项目即带新 `cwd` 重启 pi，
+    bash/read/write 工具与 `AGENTS.md`/`CLAUDE.md` 加载随之切换
+  - 「选择其他文件夹…」调起原生目录选择对话框（rfd）
+  - **「无项目」模式**：菜单顶部选项，对话不绑定任何文件夹
+    （pi 以默认 cwd 运行，`set_project` 传空目录即清除 current，
+    最近项目保留、一键可切回）
+  - 最近项目持久化于 `%APPDATA%/pi-desktop/projects.json`（最多 8 个，
+    已删除的目录自动清理），菜单中一键切换
+  - 侧边栏会话按项目（会话头记录的 `cwd`）分组展示，当前项目组置顶并标注「当前」；
+    其余组按组内最近会话时间倒序，旧会话不再被名字排序埋没
+- 重启 pi 期间 `pi_exit` 不再误报连接中断（新增 `restarting` 状态，重试连接同样受益）
+
 ## [0.1.11] - 2026-08-13
 
 ### UX

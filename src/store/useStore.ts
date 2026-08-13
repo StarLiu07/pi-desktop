@@ -1,12 +1,15 @@
 // Central state: maps the pi RPC event stream onto session tabs, messages and tool cards.
 import { create } from 'zustand';
 import {
+  listProjects,
   listSessions,
   nameSessions,
   onPiEvent,
   onPiStderr,
   piInstalled,
+  pickProject,
   sendRpc,
+  setProject,
   startPi,
   stopPi,
   type SessionListItem,
@@ -66,6 +69,12 @@ interface Store {
   status: AppStatus;
   error: string;
   sessions: SessionListItem[]; // session tree from disk
+  /** current project (workspace folder); null until one is chosen */
+  currentProject: string | null;
+  /** recently used project folders, newest first */
+  recentProjects: string[];
+  /** a pi restart (project switch / retry) is in flight — ignore pi_exit */
+  restarting: boolean;
   models: ModelInfo[];
   currentModel: ModelInfo | null;
   thinkingLevel: string;
@@ -79,6 +88,9 @@ interface Store {
 
   init(): Promise<void>;
   refreshSessions(): Promise<void>;
+  refreshProjects(): Promise<void>;
+  setProject(dir: string): Promise<void>;
+  pickProject(): Promise<void>;
   newSession(): Promise<void>;
   openSessionFromHistory(sess: SessionListItem): Promise<void>;
   forkSession(): Promise<void>;
@@ -370,7 +382,11 @@ export const useStore = create<Store>((set, get) => {
         // Drop every in-flight resolver: nothing will ever answer them.
         pending.clear();
         log('pi 进程已退出');
-        set({ status: 'error', error: 'pi 进程已退出' });
+        // A deliberate restart (project switch / retry) handles its own
+        // state — only surface an unexpected death as an error.
+        if (!get().restarting) {
+          set({ status: 'error', error: 'pi 进程已退出' });
+        }
         break;
       default:
         break;
@@ -381,6 +397,9 @@ export const useStore = create<Store>((set, get) => {
     status: 'connecting',
     error: '',
     sessions: [],
+    currentProject: null,
+    recentProjects: [],
+    restarting: false,
     models: [],
     currentModel: null,
     thinkingLevel: 'medium',
@@ -427,6 +446,7 @@ export const useStore = create<Store>((set, get) => {
         await syncActiveSession();
       }
       await get().refreshSessions();
+      await get().refreshProjects();
       const models = await rpc({ type: 'get_available_models' }).catch(() => null);
       if (models?.success && models.data) {
         const list = (models.data as { models?: ModelInfo[] }).models;
@@ -437,6 +457,37 @@ export const useStore = create<Store>((set, get) => {
     refreshSessions: async () => {
       const sessions = await listSessions().catch(() => [] as SessionListItem[]);
       set({ sessions });
+    },
+
+    refreshProjects: async () => {
+      const state = await listProjects().catch(() => null);
+      if (state) {
+        set({ currentProject: state.current, recentProjects: state.recent });
+      }
+    },
+
+    setProject: async (dir) => {
+      if (get().restarting) return;
+      // '' (no project) and null (never picked) are the same UI state.
+      if (dir === (get().currentProject ?? '')) return;
+      set({ restarting: true, status: 'connecting', error: '' });
+      try {
+        await setProject(dir);
+        // pi restarted: no active session on the new process — start fresh.
+        set({ tabs: [emptyTab()], activeTabIndex: 0 });
+        await get().init();
+        await get().refreshProjects();
+      } catch (err) {
+        set({ status: 'error', error: String(err) });
+      } finally {
+        set({ restarting: false });
+      }
+    },
+
+    pickProject: async () => {
+      if (get().restarting) return;
+      const dir = await pickProject().catch(() => null);
+      if (dir) await get().setProject(dir);
     },
 
     newSession: async () => {
@@ -627,10 +678,11 @@ export const useStore = create<Store>((set, get) => {
     },
 
     retryConnection: async () => {
-      set({ status: 'connecting', error: '' });
+      set({ status: 'connecting', error: '', restarting: true });
       await stopPi().catch(() => null);
       await startPi().catch(() => null);
       await get().init();
+      set({ restarting: false });
     },
 
     setSettingsOpen: (open) => set({ settingsOpen: open }),

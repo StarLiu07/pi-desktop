@@ -147,11 +147,20 @@ fn parse_line(line: &str) -> Option<Value> {
     serde_json::from_str(trimmed).ok()
 }
 
-/// Start the pi CLI subprocess in RPC mode. Returns an error string on failure.
-/// On success, spawns reader threads that relay pi's stdout (JSONL events) and
-/// stderr (free-form logs) to the frontend as `pi-event` / `pi-stderr` events.
+/// Start the pi CLI subprocess in RPC mode, in the current project folder.
+/// Returns an error string on failure.
 #[tauri::command]
 pub fn start_pi(app: AppHandle) -> Result<(), String> {
+    let cwd = crate::project::load_config().current.map(std::path::PathBuf::from);
+    start_pi_with_cwd(app, cwd.as_deref())
+}
+
+/// Start the pi CLI subprocess in RPC mode with an explicit working directory
+/// (the project folder — pi runs its tools and reads AGENTS.md/CLAUDE.md
+/// there). On success, spawns reader threads that relay pi's stdout (JSONL
+/// events) and stderr (free-form logs) to the frontend as `pi-event` /
+/// `pi-stderr` events.
+pub fn start_pi_with_cwd(app: AppHandle, cwd: Option<&Path>) -> Result<(), String> {
     let state = app.state::<PiState>();
     {
         let guard = state.0.lock().map_err(|e| e.to_string())?;
@@ -183,11 +192,16 @@ pub fn start_pi(app: AppHandle) -> Result<(), String> {
     #[cfg(not(windows))]
     let mut cmd = Command::new("node");
 
-    let mut child = cmd
+    let child = cmd
         .args([&entry, "--mode", "rpc", "--session-dir", &session_dir])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    if let Some(dir) = cwd {
+        eprintln!("[pi] cwd: {}", dir.display());
+        child.current_dir(dir);
+    }
+    let mut child = child
         .spawn()
         .map_err(|e| {
             eprintln!("[pi] spawn failed: {}", e);

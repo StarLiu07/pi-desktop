@@ -22,6 +22,22 @@ export async function invoke(cmd: string, args?: Record<string, unknown>): Promi
       const r = await fetch(`${BASE}/sessions`);
       return r.json();
     }
+    case 'list_projects': {
+      const r = await fetch(`${BASE}/projects`);
+      return r.json();
+    }
+    case 'set_project': {
+      await fetch(`${BASE}/set-project`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dir: args?.dir }),
+      });
+      return;
+    }
+    case 'pick_project': {
+      const r = await fetch(`${BASE}/pick-project`);
+      return r.json();
+    }
     case 'stop_pi':
     case 'start_pi': {
       await fetch(`${BASE}/stop`);

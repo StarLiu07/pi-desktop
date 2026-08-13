@@ -250,6 +250,21 @@ select:focus {
   flex-shrink: 0;
 }
 
+/* Project (workspace folder) picker chip between the logo and the tabs. */
+.topbar .project-select {
+  align-self: center;
+  margin: 0 10px 0 2px;
+}
+
+.topbar .project-select .status-select {
+  padding: 4px 10px;
+  border-radius: 7px;
+}
+
+.topbar .project-select .sel-name {
+  max-width: 180px;
+}
+
 .conn-dot {
   width: 8px;
   height: 8px;
@@ -411,6 +426,57 @@ select:focus {
   color: var(--text-faint);
   font-size: 10.5px;
   flex-shrink: 0;
+}
+
+/* Sessions grouped by project folder (cwd from the session header). */
+.session-group {
+  margin-bottom: 2px;
+}
+
+.session-group-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 10px 4px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.session-group-label .icon {
+  font-size: 10px;
+  opacity: 0.75;
+}
+
+.session-group-label .label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-group-label .cur {
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 9.5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 0 5px;
+  flex-shrink: 0;
+}
+
+.session-group-label .count {
+  color: var(--text-faint);
+  font-size: 9.5px;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.session-group-label.current {
+  color: var(--text-dim);
+}
+
+.session-item.grouped {
+  padding-left: 12px;
 }
 
 .sidebar-empty {
@@ -916,6 +982,11 @@ select:focus {
 .selector-menu.align-right {
   left: auto;
   right: 0;
+}
+
+.selector-menu.menu-down {
+  top: calc(100% + 8px);
+  bottom: auto;
 }
 
 @keyframes menu-in {
