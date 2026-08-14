@@ -3,6 +3,16 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.16] - 2026-08-14
+
+### Fixed
+- 顶栏无法拖动窗口（0.1.15 无边框回归）：`data-tauri-drag-region="false"` 误加在
+  整条 `.tab-strip`（`flex: 1` 占满顶栏中段）上，tauri drag.js 的 `"false"` 语义会
+  封禁该元素及其所有祖先 —— 整条标题栏只剩 π logo 可拖
+  - 改为仅每个 `.tab` 个体标记 `"false"`（保持点击/双击重命名），标签间空隙恢复可拖，
+    双击空隙仍可最大化；验证装置 `spike/e2e-dragregion.mjs`（注入真实 drag.js +
+    CDP 真实鼠标事件，拖/不拖矩阵 6 项全过）
+
 ## [0.1.15] - 2026-08-14
 
 ### Features

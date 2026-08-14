@@ -28,11 +28,14 @@ export function TopBar() {
         <span className="logo-mark">π</span>
         <span className="logo-name">PI</span>
       </div>
-      <nav className="tab-strip" data-tauri-drag-region="false">
+      {/* The strip itself stays draggable (empty space between tabs); only each
+          tab must block dragging so clicks still activate sessions. */}
+      <nav className="tab-strip">
         {tabs.map((t, i) => (
           <div
             key={i}
             className={`tab ${i === activeTabIndex ? 'active' : ''}`}
+            data-tauri-drag-region="false"
             onClick={() => activateTab(i)}
             onDoubleClick={() => rename(i)}
             title="双击重命名"
