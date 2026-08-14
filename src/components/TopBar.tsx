@@ -1,4 +1,5 @@
 import { useStore } from '../store/useStore';
+import { WindowControls } from './WindowControls';
 
 /** OpenCode-style top bar: brand mark, session tabs, and connection/settings controls. */
 export function TopBar() {
@@ -22,12 +23,12 @@ export function TopBar() {
   };
 
   return (
-    <header className="topbar">
+    <header className="topbar" data-tauri-drag-region="deep">
       <div className="topbar-logo" title="Pi Desktop — OpenCode 风格桌面客户端">
         <span className="logo-mark">π</span>
         <span className="logo-name">PI</span>
       </div>
-      <nav className="tab-strip">
+      <nav className="tab-strip" data-tauri-drag-region="false">
         {tabs.map((t, i) => (
           <div
             key={i}
@@ -51,7 +52,7 @@ export function TopBar() {
           </div>
         ))}
       </nav>
-      <div className="tab-btns">
+      <div className="tab-btns" data-tauri-drag-region="false">
         <button onClick={() => forkSession()} title="分叉当前会话">
           ⧉
         </button>
@@ -59,12 +60,13 @@ export function TopBar() {
           +
         </button>
       </div>
-      <div className="topbar-right">
+      <div className="topbar-right" data-tauri-drag-region="false">
         <span className={`conn-dot ${status === 'ready' ? 'ok' : status === 'error' ? 'err' : ''}`} />
         <button className="topbar-btn" onClick={() => setSettingsOpen(true)} title="设置">
           ⚙
         </button>
       </div>
+      <WindowControls />
     </header>
   );
 }

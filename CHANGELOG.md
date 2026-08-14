@@ -3,6 +3,30 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.15] - 2026-08-14
+
+### Features
+- 无边框一体化窗口（OpenCode/ZCode 风格）：去除 Windows 系统标题栏，整窗深色一体
+  - `decorations: false`，顶栏承担标题栏角色：顶栏/全屏页整体为拖动区域
+    （`data-tauri-drag-region="deep"`），双击顶栏最大化
+  - 自绘窗口控制三键（最小化 / 最大化·还原 / 关闭），opencode 风格：顶栏右侧 +
+    安装/连接失败全屏页右上角；关闭按钮悬停红色
+  - 新增 `WindowControls` 组件，标签/按钮区标记不可拖（`"false"`），交互不受影响
+
+### Fixed
+- 会话名写入窗口标题此前被 Tauri ACL 静默拒绝（缺 `allow-set-title` 权限），现已授权
+
+### Changed
+- capabilities 追加窗口控制权限：`allow-minimize` / `allow-toggle-maximize` /
+  `allow-close` / `allow-start-dragging` / `allow-set-title`
+
+## [0.1.14] - 2026-08-14
+
+### Fixed
+- 启动黑窗口全面修复：窗口就绪后显示（load + 双 rAF）、连接中骨架屏、npm 探测静默化
+  （改路径直探 + `CREATE_NO_WINDOW`，不再弹 Windows Terminal）
+- Markdown 渲染改懒加载（拆包，减少首屏体积）
+
 ## [0.1.13] - 2026-08-13
 
 ### Features

@@ -1433,6 +1433,7 @@ select:focus {
   align-items: center;
   justify-content: center;
   padding: 24px;
+  position: relative;
 }
 
 .screen .card {
@@ -1523,6 +1524,83 @@ select:focus {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ---------- frameless window controls ---------- */
+
+.window-controls {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+/* full-screen pages (install / error) have no topbar: pin the controls top-right */
+.screen > .window-controls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 42px;
+}
+
+.wc-btn {
+  width: 46px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+  font-family: var(--mono);
+}
+
+.wc-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.wc-btn.close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+.wc-icon {
+  position: relative;
+  display: block;
+}
+
+.wc-min {
+  width: 10px;
+  height: 1px;
+  background: currentColor;
+}
+
+.wc-max {
+  width: 10px;
+  height: 10px;
+  border: 1px solid currentColor;
+}
+
+.wc-restore {
+  width: 10px;
+  height: 10px;
+  border: 1px solid currentColor;
+}
+
+.wc-restore::before {
+  content: '';
+  position: absolute;
+  left: -3px;
+  top: 3px;
+  width: 10px;
+  height: 10px;
+  border: 1px solid currentColor;
+  background: var(--bg);
+}
+
+.wc-close {
+  font-size: 11px;
+  line-height: 1;
 }
 
 /* ---------- scrollbars ---------- */

@@ -25,3 +25,7 @@ dist-ssr
 
 # ZCode workspace-local state
 .zcode/
+
+# Build artifacts (user-launch copy + side-by-side WebView2 loader)
+Pi Desktop.exe
+WebView2Loader.dll

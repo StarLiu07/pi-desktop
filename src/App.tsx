@@ -6,11 +6,13 @@ import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
 import { InputBar } from './components/InputBar';
 import { SettingsModal } from './components/SettingsModal';
+import { WindowControls } from './components/WindowControls';
 
 function InstallScreen() {
   return (
-    <div className="screen">
-      <div className="card">
+    <div className="screen" data-tauri-drag-region="deep">
+      <WindowControls />
+      <div className="card" data-tauri-drag-region="false">
         <h1>
           <span className="logo">π</span> Pi Desktop
         </h1>
@@ -35,8 +37,9 @@ function ErrorScreen() {
   const error = useStore((s) => s.error);
   const retryConnection = useStore((s) => s.retryConnection);
   return (
-    <div className="screen error">
-      <div className="card">
+    <div className="screen error" data-tauri-drag-region="deep">
+      <WindowControls />
+      <div className="card" data-tauri-drag-region="false">
         <h1>连接中断</h1>
         <p>{error || 'pi 进程未响应'}</p>
         <div className="btn-row">
