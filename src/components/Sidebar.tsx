@@ -141,7 +141,7 @@ export function Sidebar() {
                 title={s.cwd ?? s.file}
               >
                 <span className="dot" />
-                <span className="name">{s.name ?? s.preview ?? s.file}</span>
+                <span className="name">{s.name ?? s.preview ?? '空会话'}</span>
                 <span className="meta">{shortTime(s.timestamp)}</span>
               </div>
             ))
@@ -175,7 +175,7 @@ export function Sidebar() {
                     title={s.cwd ?? s.file}
                   >
                     <span className="dot" />
-                    <span className="name">{s.name ?? s.preview ?? s.file}</span>
+                    <span className="name">{s.name ?? s.preview ?? '空会话'}</span>
                     <span className="meta">{shortTime(s.timestamp)}</span>
                   </div>
                 ))}

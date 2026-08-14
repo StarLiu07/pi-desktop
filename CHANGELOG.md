@@ -3,6 +3,17 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.17] - 2026-08-14
+
+### Fixed
+- 会话标签/侧栏不再显示时间戳文件名（`2026-08-14T02-36-03-072Z_<uuid>.jsonl`）：
+  pi 的 `get_state` 返回 `sessionName` 字段，前端误读 `d.name`（恒为 undefined），
+  于是回退到会话文件 basename —— 每次打开应用恢复会话时标签都显示"当前时间"
+  - 标签规则改为 Z-Code/OpenCode 式：真实名称 → 首条用户消息（preview）→
+    中性占位名「新会话」；侧栏空会话显示「空会话」，文件名仅保留在悬浮提示里
+  - 顺带修复 `sessionName` 字段读取，pi 侧重命名的会话现在能正确同步到标签
+  - 新增回归验证 `spike/e2e-tablabels.mjs`（真实 pi + headless Chrome，6 项断言全过）
+
 ## [0.1.16] - 2026-08-14
 
 ### Fixed

@@ -125,6 +125,15 @@ function emptyTab(): SessionTab {
   };
 }
 
+/** Session display label: real name → first user message → neutral placeholder.
+ *  Never the timestamped file name — Z-Code/OpenCode style, where an untitled
+ *  chat shows "New Chat" until the first exchange earns it a title. */
+function labelOf(name: string | null | undefined, preview: string | null | undefined): string {
+  if (name) return name;
+  if (preview) return preview;
+  return '新会话';
+}
+
 /** Send a request and resolve with the matching response (or a timeout failure). */
 async function rpc(req: Record<string, unknown>): Promise<RpcResponse> {
   const id = nextId();
@@ -202,7 +211,11 @@ export const useStore = create<Store>((set, get) => {
               ...t,
               sessionId: (d.sessionId as string) ?? t.sessionId,
               sessionPath: (d.sessionFile as string) ?? t.sessionPath,
-              name: (d.name as string) ?? t.name ?? t.sessionPath?.split(/[\\/]/).pop() ?? t.name,
+              // get_state returns `sessionName` (undefined until named). Keep
+              // the current label as-is instead of falling back to the file
+              // name — session files are timestamped (`…T04-42-04-742Z_<uuid>`)
+              // and make ugly tab labels.
+              name: (d.sessionName as string) ?? t.name,
             },
           }),
           currentModel: (d.model as ModelInfo) ?? s.currentModel,
@@ -437,13 +450,30 @@ export const useStore = create<Store>((set, get) => {
             ...tabs[0],
             sessionId: d.sessionId as string,
             sessionPath: (d.sessionFile as string) ?? null,
-            name: (d.sessionFile as string)?.split(/[\\/]/).pop() ?? '会话',
+            // Neutral placeholder — the real label (name ?? first user
+            // message) is merged in from the session tree after the
+            // refreshSessions() below. Never the timestamped file name.
           };
           return { tabs };
         });
         await syncActiveSession();
       }
       await get().refreshSessions();
+      // Restored session: mirror the history-list label onto the tab so it
+      // shows the real name (or first message) instead of the file name.
+      const restoredPath = (d.sessionFile as string) ?? null;
+      if (restoredPath) {
+        const meta = get().sessions.find((s) => s.path === restoredPath);
+        if (meta) {
+          const label = labelOf(meta.name, meta.preview);
+          set((s) => {
+            const tabs = [...s.tabs];
+            const t = tabs[0];
+            if (t && t.sessionPath === restoredPath) tabs[0] = { ...t, name: label };
+            return { tabs };
+          });
+        }
+      }
       await get().refreshProjects();
       const models = await rpc({ type: 'get_available_models' }).catch(() => null);
       if (models?.success && models.data) {
@@ -563,7 +593,7 @@ export const useStore = create<Store>((set, get) => {
         ...emptyTab(),
         sessionId: sess.id,
         sessionPath: sess.path,
-        name: sess.name ?? sess.preview ?? sess.file,
+        name: labelOf(sess.name, sess.preview),
       };
       // Do NOT pre-set activeTabIndex here: activateTab's "already on this
       // session" guard compares against the current active tab, and a fresh
