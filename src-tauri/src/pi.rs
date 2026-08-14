@@ -50,16 +50,47 @@ fn find_pi_entry_uncached() -> Option<String> {
             return Some(p);
         }
     }
-    // 2. global npm root. On Windows npm is npm.cmd (a batch file) — CreateProcess
-    //    does not resolve `.cmd`, so spell the file name out per platform.
-    let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };
-    if let Ok(out) = Command::new(npm).arg("root").arg("-g").output() {
+    const PKGS: [&str; 2] = [
+        "@earendil-works/pi-coding-agent",
+        "@mariozechner/pi-coding-agent",
+    ];
+    // 2. Probe known npm global roots directly — no subprocess means no
+    //    console window. `npm root -g` used to be the way, but spawning npm
+    //    (a .cmd → cmd.exe) pops a Windows Terminal window over the app on
+    //    every startup when the terminal is the default console host.
+    let mut roots: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        roots.push(Path::new(&appdata).join("npm")); // npm's default global dir
+    }
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        roots.push(Path::new(&local).join("hermes").join("node")); // hermes manager
+    }
+    for root in &roots {
+        for pkg in PKGS {
+            let candidate = root.join(pkg).join("dist").join("cli.js");
+            if candidate.exists() {
+                return Some(candidate.to_string_lossy().to_string());
+            }
+        }
+    }
+    // 3. Fallback: ask npm for its global root. On Windows npm is npm.cmd
+    //    (a batch file) — route through cmd.exe with CREATE_NO_WINDOW so no
+    //    console window flashes during the probe.
+    #[cfg(windows)]
+    let out = {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        Command::new("cmd.exe")
+            .args(["/c", "npm", "root", "-g"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+    };
+    #[cfg(not(windows))]
+    let out = Command::new("npm").arg("root").arg("-g").output();
+    if let Ok(out) = out {
         if out.status.success() {
             let root = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            for pkg in [
-                "@earendil-works/pi-coding-agent",
-                "@mariozechner/pi-coding-agent",
-            ] {
+            for pkg in PKGS {
                 let candidate = Path::new(&root).join(pkg).join("dist").join("cli.js");
                 if candidate.exists() {
                     return Some(candidate.to_string_lossy().to_string());
@@ -281,8 +312,9 @@ pub fn stop_pi(app: AppHandle) -> Result<(), String> {
 }
 
 /// Whether the pi CLI is installed — drives the setup screen in the frontend.
+/// Async so the npm probe (cold cache, ~200ms) never blocks the main thread.
 #[tauri::command]
-pub fn pi_installed() -> bool {
+pub async fn pi_installed() -> bool {
     find_pi_entry().is_some()
 }
 
@@ -468,8 +500,11 @@ fn text_parts(msg: &Value) -> Option<String> {
 /// pi's RPC has no "list sessions" command, so we scan the session store directly.
 /// Before scanning, sessions created by the pi CLI are synced in so history
 /// from before the desktop existed shows up too.
+///
+/// Async: the recursive scan + per-file parse runs on the thread pool instead
+/// of the main thread, so the sidebar never blocks UI events while filling.
 #[tauri::command]
-pub fn list_sessions(_app: AppHandle) -> Result<Vec<SessionMeta>, String> {
+pub async fn list_sessions(_app: AppHandle) -> Result<Vec<SessionMeta>, String> {
     let dir = default_session_dir();
     if let Some(cli_root) = pi_cli_sessions_root() {
         if let Err(e) = sync_cli_sessions_into(Path::new(&dir), Path::new(&cli_root)) {

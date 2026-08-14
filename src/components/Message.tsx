@@ -1,39 +1,17 @@
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeHighlight from 'rehype-highlight';
-import { memo, useState, type HTMLAttributes } from 'react';
+import { lazy, memo, Suspense } from 'react';
 import type { ChatMessage, ContentPart } from '../rpc/types';
 import type { ToolExecState } from '../store/useStore';
 import { ToolCard } from './ToolCard';
+
+// Deferred chunk: react-markdown + highlight.js parse on demand, after the
+// first frame (see Markdown.tsx). Falls back to plain text while loading.
+const Markdown = lazy(() => import('./Markdown').then((m) => ({ default: m.Markdown })));
 
 interface RowProps {
   message: ChatMessage;
   toolExecs: Record<string, ToolExecState>;
   /** true while this assistant message is still receiving message_update events */
   streaming?: boolean;
-}
-
-/** Code block with a copy button; falls back to a plain pre outside of markdown. */
-function CodeBlock({ children, ...props }: HTMLAttributes<HTMLPreElement>) {
-  const [copied, setCopied] = useState(false);
-  const text = String(children ?? '');
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch {
-      /* clipboard unavailable */
-    }
-  };
-  return (
-    <div className="code-wrap">
-      <button className="code-copy" onClick={copy} title="复制代码">
-        {copied ? '✓' : '⧉'}
-      </button>
-      <pre {...props}>{children}</pre>
-    </div>
-  );
 }
 
 /** Assistant message content: thinking blocks, tool call cards and text parts. */
@@ -90,13 +68,9 @@ function AssistantContent({
             }
             return (
               <div key={i} className="md-text">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeHighlight]}
-                  components={{ pre: CodeBlock }}
-                >
-                  {part.text ?? ''}
-                </ReactMarkdown>
+                <Suspense fallback={<div className="md-text">{part.text ?? ''}</div>}>
+                  <Markdown text={part.text ?? ''} />
+                </Suspense>
               </div>
             );
           case 'image':

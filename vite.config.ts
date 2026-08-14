@@ -30,15 +30,18 @@ export default defineConfig(async () => ({
     },
   },
 
-  // Split the heavy markdown/highlight deps out of the main bundle so the
-  // WebView doesn't parse 500KB+ on startup.
+  // The markdown/highlight stack (~336KB) must not be parsed before the app's
+  // first frame: it is imported only via React.lazy in Message.tsx, so rollup
+  // keeps it in its own chunk, loaded on demand. No manualChunks here — both
+  // the object and function forms end up packing shared deps (react etc.)
+  // into the markdown chunk, which forces the entry to statically import it.
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          markdown: ["react-markdown", "remark-gfm", "rehype-highlight", "highlight.js"],
-          tauri: ["@tauri-apps/api", "@tauri-apps/plugin-opener"],
-        },
+        // Don't hoist dynamically-imported chunks into the entry's static
+        // imports — otherwise the markdown chunk above would be parsed before
+        // the first frame, defeating the lazy load.
+        hoistTransitiveImports: false,
       },
     },
   },

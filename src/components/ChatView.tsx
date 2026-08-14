@@ -8,6 +8,7 @@ const STICK_THRESHOLD = 80;
 export function ChatView() {
   const tab = useStore((s) => s.tabs[s.activeTabIndex]);
   const activeTabIndex = useStore((s) => s.activeTabIndex);
+  const status = useStore((s) => s.status);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
 
@@ -48,11 +49,18 @@ export function ChatView() {
       }}
     >
       {isEmpty ? (
-        <div className="chat-empty">
-          <span className="logo">π</span>
-          <span className="title">有什么可以帮你？</span>
-          <span className="hint">输入消息开始新的会话 · Enter 发送 · Shift+Enter 换行</span>
-        </div>
+        status === 'connecting' ? (
+          <div className="chat-empty">
+            <span className="spinner" />
+            <span className="title">正在连接 pi 进程…</span>
+          </div>
+        ) : (
+          <div className="chat-empty">
+            <span className="logo">π</span>
+            <span className="title">有什么可以帮你？</span>
+            <span className="hint">输入消息开始新的会话 · Enter 发送 · Shift+Enter 换行</span>
+          </div>
+        )
       ) : (
         <div className="chat-inner">
           {tab.notice && <div className="notice">{tab.notice}</div>}

@@ -7,17 +7,6 @@ import { ChatView } from './components/ChatView';
 import { InputBar } from './components/InputBar';
 import { SettingsModal } from './components/SettingsModal';
 
-function ConnectingScreen() {
-  return (
-    <div className="screen">
-      <div className="card">
-        <span className="spinner" />
-        <p>正在连接 pi 进程…</p>
-      </div>
-    </div>
-  );
-}
-
 function InstallScreen() {
   return (
     <div className="screen">
@@ -69,6 +58,36 @@ export default function App() {
     init();
   }, [init]);
 
+  // The window starts hidden (visible:false) so the user never sees the blank
+  // WebView frame. Reveal it once React has committed the first frame — a
+  // spinner or the main UI, never a black box. Plain-browser dev has no window.
+  //
+  // Wait for `load` + two rAFs before showing: showing a window whose render
+  // pipeline isn't active yet makes the WebView2 compositor re-initialize on
+  // foreground activation, which paints a ~300ms solid-black frame first.
+  useEffect(() => {
+    const show = () => {
+      try {
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            try {
+              getCurrentWindow().show().catch(() => undefined);
+            } catch {
+              /* running outside Tauri */
+            }
+          }),
+        );
+      } catch {
+        /* running outside Tauri */
+      }
+    };
+    if (document.readyState === 'complete') {
+      show();
+    } else {
+      window.addEventListener('load', show);
+    }
+  }, []);
+
   // Window title follows the active session; falls back to the plain title in
   // plain-browser dev (no Tauri window handle).
   useEffect(() => {
@@ -104,8 +123,10 @@ export default function App() {
 
   if (status === 'installing') return <InstallScreen />;
   if (status === 'error') return <ErrorScreen />;
-  if (status === 'connecting') return <ConnectingScreen />;
 
+  // 'connecting' renders the full app shell too — a near-black spinner screen
+  // reads as a "black window" on startup, while the sidebar/topbar/input
+  // skeleton with a "正在连接 pi 进程…" chat area looks like an app loading.
   return (
     <div className="app">
       <Sidebar />

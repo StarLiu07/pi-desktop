@@ -47,8 +47,8 @@ function modelOptions(models: ModelInfo[]): SelectorOption[] {
 }
 
 export function InputBar() {
+  const status = useStore((s) => s.status);
   const agentActive = useStore((s) => s.tabs[s.activeTabIndex]?.agentActive);
-  const activeTabIndex = useStore((s) => s.activeTabIndex);
   const messages = useStore((s) => s.tabs[s.activeTabIndex]?.messages);
   const sendPrompt = useStore((s) => s.sendPrompt);
   const abort = useStore((s) => s.abort);
@@ -96,10 +96,9 @@ export function InputBar() {
   // thinking level entirely — disable the control instead of pretending.
   const thinkingDisabled = !!currentModel && !currentModel.reasoning;
 
-  // Focus on mount and whenever the active tab changes.
-  useEffect(() => {
-    textareaRef.current?.focus();
-  }, [activeTabIndex]);
+  // No auto-focus on mount: focusing the textarea right as the window appears
+  // wakes the IME, and some IMEs (WeType) pop a candidate window over the app
+  // — users read it as a stray "black window". Clicking the box focuses it.
 
   // Warm the USD→CNY rate once; cost shows in ¥ like pi's footer.
   useEffect(() => {
@@ -111,7 +110,7 @@ export function InputBar() {
 
   const submit = () => {
     const trimmed = text.trim();
-    if (!trimmed || agentActive) return;
+    if (!trimmed || agentActive || status !== 'ready') return;
     sendPrompt(trimmed);
     setText('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -191,7 +190,11 @@ export function InputBar() {
             ■ 停止
           </button>
         ) : (
-          <button className="send-btn" onClick={submit} disabled={!text.trim()}>
+          <button
+            className="send-btn"
+            onClick={submit}
+            disabled={!text.trim() || status !== 'ready'}
+          >
             发送
           </button>
         )}
