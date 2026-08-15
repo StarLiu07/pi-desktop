@@ -70,6 +70,21 @@ export function pickProject(): Promise<string | null> {
   return invoke('pick_project');
 }
 
+/** Exists/is-dir check for a typed path in the add-project dialog. */
+export interface ProjectPathInfo {
+  exists: boolean;
+  is_dir: boolean;
+}
+
+export function projectPathInfo(dir: string): Promise<ProjectPathInfo> {
+  return invoke('project_path_info', { dir });
+}
+
+/** Create the project folder (add-project's "创建并添加" flow). Idempotent. */
+export function createProjectDir(dir: string): Promise<null> {
+  return invoke('create_project_dir', { dir });
+}
+
 /** Subscribe to the pi event stream. Returns an unlisten function. */
 export function onPiEvent(cb: (event: PiEvent) => void): Promise<UnlistenFn> {
   return listen<PiEvent>('pi-event', (ev) => cb(ev.payload));

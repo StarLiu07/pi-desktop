@@ -17,7 +17,9 @@ pub fn run() {
             pi::name_sessions,
             project::list_projects,
             project::set_project,
-            project::pick_project
+            project::pick_project,
+            project::project_path_info,
+            project::create_project_dir
         ])
         .setup(|app| {
             // Boot the pi subprocess together with the window — on a background

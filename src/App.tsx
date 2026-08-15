@@ -6,6 +6,7 @@ import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/ChatView';
 import { InputBar } from './components/InputBar';
 import { SettingsModal } from './components/SettingsModal';
+import { AddProjectModal } from './components/AddProjectModal';
 import { WindowControls } from './components/WindowControls';
 
 function InstallScreen() {
@@ -137,6 +138,7 @@ export default function App() {
       <ChatView />
       <InputBar />
       <SettingsModal />
+      <AddProjectModal />
     </div>
   );
 }

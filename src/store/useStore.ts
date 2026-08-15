@@ -7,7 +7,6 @@ import {
   onPiEvent,
   onPiStderr,
   piInstalled,
-  pickProject,
   sendRpc,
   setProject,
   startPi,
@@ -81,6 +80,8 @@ interface Store {
   tabs: SessionTab[];
   activeTabIndex: number;
   settingsOpen: boolean;
+  /** add-project dialog visibility (opened from the project selector menu) */
+  addProjectOpen: boolean;
   /** pi stderr + lifecycle log lines, newest last */
   logs: string[];
   /** an AI naming run is in flight (batch or auto) */
@@ -90,7 +91,6 @@ interface Store {
   refreshSessions(): Promise<void>;
   refreshProjects(): Promise<void>;
   setProject(dir: string): Promise<void>;
-  pickProject(): Promise<void>;
   newSession(): Promise<void>;
   openSessionFromHistory(sess: SessionListItem): Promise<void>;
   forkSession(): Promise<void>;
@@ -107,6 +107,8 @@ interface Store {
   setThinkingLevel(level: string): Promise<void>;
   retryConnection(): Promise<void>;
   setSettingsOpen(open: boolean): void;
+  openAddProject(): void;
+  closeAddProject(): void;
 }
 
 function emptyTab(): SessionTab {
@@ -417,6 +419,7 @@ export const useStore = create<Store>((set, get) => {
     tabs: [emptyTab()],
     activeTabIndex: 0,
     settingsOpen: false,
+    addProjectOpen: false,
     logs: [],
     naming: false,
 
@@ -512,11 +515,8 @@ export const useStore = create<Store>((set, get) => {
       }
     },
 
-    pickProject: async () => {
-      if (get().restarting) return;
-      const dir = await pickProject().catch(() => null);
-      if (dir) await get().setProject(dir);
-    },
+    openAddProject: () => set({ addProjectOpen: true }),
+    closeAddProject: () => set({ addProjectOpen: false }),
 
     newSession: async () => {
       // Stop any running agent first — pi handles one agent at a time, and a

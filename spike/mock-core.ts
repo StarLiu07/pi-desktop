@@ -38,6 +38,18 @@ export async function invoke(cmd: string, args?: Record<string, unknown>): Promi
       const r = await fetch(`${BASE}/pick-project`);
       return r.json();
     }
+    case 'project_path_info': {
+      const r = await fetch(`${BASE}/path-info?dir=${encodeURIComponent(args?.dir ?? '')}`);
+      return r.json();
+    }
+    case 'create_project_dir': {
+      await fetch(`${BASE}/create-dir`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dir: args?.dir }),
+      });
+      return;
+    }
     case 'stop_pi':
     case 'start_pi': {
       await fetch(`${BASE}/stop`);

@@ -13,6 +13,19 @@ function loadCollapsed(): Set<string> {
   }
 }
 
+/** Sessions shown per project group before the rest fold behind 「显示更多」. */
+const GROUP_PREVIEW = 5;
+/** localStorage key for groups whose preview was expanded (persists). */
+const SHOWALL_KEY = 'pi-desktop.sidebar.showall';
+
+function loadShowAll(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(SHOWALL_KEY) ?? '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
 function shortTime(ts: string | null): string {
   if (!ts) return '';
   const t = new Date(ts).getTime();
@@ -52,9 +65,14 @@ export function Sidebar() {
   const openSessionFromHistory = useStore((s) => s.openSessionFromHistory);
   const newSession = useStore((s) => s.newSession);
   const currentProject = useStore((s) => s.currentProject);
+  const recentProjects = useStore((s) => s.recentProjects);
+  const setProject = useStore((s) => s.setProject);
+  const openAddProject = useStore((s) => s.openAddProject);
   const [filter, setFilter] = useState('');
   // Collapsed project groups (by cwd key), persisted to localStorage.
   const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsed);
+  // Groups expanded past GROUP_PREVIEW via 「显示更多」, persisted too.
+  const [showAll, setShowAll] = useState<Set<string>>(loadShowAll);
 
   const toggleGroup = (key: string) => {
     setCollapsed((prev) => {
@@ -65,6 +83,20 @@ export function Sidebar() {
         localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next]));
       } catch {
         /* storage unavailable (private mode etc.) — collapse still works */
+      }
+      return next;
+    });
+  };
+
+  const toggleShowAll = (key: string) => {
+    setShowAll((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(SHOWALL_KEY, JSON.stringify([...next]));
+      } catch {
+        /* storage unavailable — expand still works */
       }
       return next;
     });
@@ -110,21 +142,52 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-header">
-        <span>会话历史</span>
-        <div className="sidebar-actions">
-          <button onClick={() => newSession()} title="新建会话">
-            +
-          </button>
+      {/* 项目 — ZCode/Codex style: projects and tasks live in separate
+          sections; the 「＋」only appears while hovering the header. */}
+      <div className="sidebar-section proj">
+        <div className="sidebar-header proj-header">
+          <span>项目</span>
+          <div className="sidebar-actions">
+            <button className="section-add" onClick={openAddProject} title="添加项目">
+              +
+            </button>
+          </div>
         </div>
+        {recentProjects.length === 0 ? (
+          <div className="sidebar-empty">暂无项目</div>
+        ) : (
+          recentProjects.map((p) => (
+            <div
+              key={p}
+              className={`project-item${currentProject && samePath(p, currentProject) ? ' current' : ''}`}
+              onClick={() => setProject(p)}
+              title={p}
+            >
+              <span className="icon">📁</span>
+              <span className="name">{baseName(p)}</span>
+              {currentProject && samePath(p, currentProject) && (
+                <span className="cur">当前</span>
+              )}
+            </div>
+          ))
+        )}
       </div>
-      <input
-        className="sidebar-search"
-        type="text"
-        placeholder="搜索会话…"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-      />
+      <div className="sidebar-section tasks">
+        <div className="sidebar-header">
+          <span>任务</span>
+          <div className="sidebar-actions">
+            <button onClick={() => newSession()} title="新建会话">
+              +
+            </button>
+          </div>
+        </div>
+        <input
+          className="sidebar-search"
+          type="text"
+          placeholder="搜索会话…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
       <div className="session-tree">
         {groups === null ? (
           // Search mode: flat list.
@@ -166,22 +229,43 @@ export function Sidebar() {
                 {g.isCurrent && <span className="cur">当前</span>}
                 <span className="count">{g.items.length}</span>
               </div>
-              {!collapsed.has(g.key) &&
-                g.items.map((s) => (
-                  <div
-                    key={s.id}
-                    className={`session-item grouped ${s.id === activeId ? 'active' : ''}`}
-                    onClick={() => openSessionFromHistory(s)}
-                    title={s.cwd ?? s.file}
-                  >
-                    <span className="dot" />
-                    <span className="name">{s.name ?? s.preview ?? '空会话'}</span>
-                    <span className="meta">{shortTime(s.timestamp)}</span>
-                  </div>
-                ))}
+              {!collapsed.has(g.key) && (() => {
+                // Active session beyond the preview → auto-expand so the user
+                // always sees where they are (collapsing would hide it, so the
+                // toggle button is omitted in that state).
+                const activeIdx = g.items.findIndex((s) => s.id === activeId);
+                const autoExpanded = activeIdx >= GROUP_PREVIEW;
+                const expanded = showAll.has(g.key) || autoExpanded;
+                const shown = expanded ? g.items : g.items.slice(0, GROUP_PREVIEW);
+                return (
+                  <>
+                    {shown.map((s) => (
+                      <div
+                        key={s.id}
+                        className={`session-item grouped ${s.id === activeId ? 'active' : ''}`}
+                        onClick={() => openSessionFromHistory(s)}
+                        title={s.cwd ?? s.file}
+                      >
+                        <span className="dot" />
+                        <span className="name">{s.name ?? s.preview ?? '空会话'}</span>
+                        <span className="meta">{shortTime(s.timestamp)}</span>
+                      </div>
+                    ))}
+                    {g.items.length > GROUP_PREVIEW && !autoExpanded && (
+                      <button
+                        className="session-group-more"
+                        onClick={() => toggleShowAll(g.key)}
+                      >
+                        {expanded ? '收起' : `显示更多 (${g.items.length - GROUP_PREVIEW})`}
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           ))
         )}
+      </div>
       </div>
     </aside>
   );

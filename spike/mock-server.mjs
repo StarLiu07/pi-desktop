@@ -2,7 +2,7 @@
 // Spawns a real pi RPC process and exposes it over HTTP+SSE so the frontend
 // can run in a plain browser with `vite.mock.config.ts`.
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, copyFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, copyFileSync, statSync, mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -29,7 +29,12 @@ if (process.env.MOCK_FIXTURES_DIR) {
 }
 
 // Mock project store: { current, recent } like the real projects.json.
+// MOCK_RECENT_DIRS seeds the recent list (semicolon-separated abs paths) so
+// the sidebar 项目 section has items from the start.
 const projectState = { current: null, recent: [] };
+if (process.env.MOCK_RECENT_DIRS) {
+  projectState.recent = process.env.MOCK_RECENT_DIRS.split(';').filter(Boolean);
+}
 const pickResult = process.env.MOCK_PICK_DIR || process.cwd();
 
 function spawnPi(cwd) {
@@ -111,12 +116,15 @@ const server = createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     // Parse name/preview/cwd from each file like the real list_sessions.
     const out = files.map((file) => {
+      let id = file.replace(/\.jsonl$/, '');
       let name = null, preview = null, timestamp = null, cwd = null;
       try {
         for (const line of readFileSync(join(sessionDir, file), 'utf8').split('\n')) {
           if (!line) continue;
           const v = JSON.parse(line);
           if (v.type === 'session') {
+            // Same as the real parse_session: the header uuid is the id.
+            if (typeof v.id === 'string' && v.id) id = v.id;
             if (typeof v.cwd === 'string') cwd = v.cwd;
             if (typeof v.timestamp === 'string') timestamp = v.timestamp;
           } else if (v.type === 'session_info') {
@@ -129,7 +137,15 @@ const server = createServer((req, res) => {
           }
         }
       } catch {}
-      return { id: file.replace(/\.jsonl$/, ''), name, preview, timestamp, cwd, message_count: 0, file, path: join(sessionDir, file), last_message_id: null };
+      return { id, name, preview, timestamp, cwd, message_count: 0, file, path: join(sessionDir, file), last_message_id: null };
+    });
+    // Newest first, like the real list_sessions (timestamp desc, file name as
+    // fallback) — keeps sidebar group ordering deterministic in e2e tests.
+    out.sort((a, b) => {
+      const ta = a.timestamp ?? '';
+      const tb = b.timestamp ?? '';
+      if (ta || tb) return tb.localeCompare(ta);
+      return b.file.localeCompare(a.file);
     });
     res.end(JSON.stringify(out));
   } else if (path === '/projects') {
@@ -167,6 +183,31 @@ const server = createServer((req, res) => {
   } else if (path === '/pick-project') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(pickResult));
+  } else if (path === '/path-info') {
+    // Mirror project_path_info: exists/is-dir for a typed path.
+    const dir = url.searchParams.get('dir') ?? '';
+    let info = { exists: false, is_dir: false };
+    try {
+      const st = statSync(dir);
+      info = { exists: true, is_dir: st.isDirectory() };
+    } catch {}
+    console.log(`[mock] path-info ${JSON.stringify(dir)} -> ${JSON.stringify(info)}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(info));
+  } else if (path === '/create-dir') {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
+      const { dir } = JSON.parse(body || '{}');
+      try {
+        mkdirSync(dir, { recursive: true });
+        res.writeHead(200);
+        res.end();
+      } catch (e) {
+        res.writeHead(500);
+        res.end(String(e));
+      }
+    });
   } else if (path === '/rpc') {
     let body = '';
     req.on('data', (c) => (body += c));

@@ -9,8 +9,8 @@ import {
   refreshCnyRate,
 } from '../lib/usage';
 
-/** Magic option value: open the native folder picker instead of selecting. */
-const PICK_PROJECT = '__pick_folder__';
+/** Magic option value: open the add-project dialog instead of selecting. */
+const ADD_PROJECT = '__add_project__';
 
 /** Last path segment of an absolute path (`D:\a\b` → `b`). */
 function baseName(path: string): string {
@@ -60,7 +60,7 @@ export function InputBar() {
   const currentProject = useStore((s) => s.currentProject);
   const recentProjects = useStore((s) => s.recentProjects);
   const setProject = useStore((s) => s.setProject);
-  const pickProject = useStore((s) => s.pickProject);
+  const openAddProject = useStore((s) => s.openAddProject);
 
   const projectOptions: SelectorOption[] = [
     {
@@ -75,14 +75,14 @@ export function InputBar() {
       group: '最近项目',
     })),
     {
-      value: PICK_PROJECT,
-      label: '选择其他文件夹…',
-      hint: '打开系统目录选择器',
+      value: ADD_PROJECT,
+      label: '添加项目…',
+      hint: '输入路径或浏览文件夹',
     },
   ];
 
   const onProjectChange = (v: string) => {
-    if (v === PICK_PROJECT) pickProject();
+    if (v === ADD_PROJECT) openAddProject();
     else setProject(v);
   };
 

@@ -29,6 +29,8 @@ export default defineConfig({
       '/projects': 'http://localhost:4321',
       '/set-project': 'http://localhost:4321',
       '/pick-project': 'http://localhost:4321',
+      '/path-info': 'http://localhost:4321',
+      '/create-dir': 'http://localhost:4321',
       '/stop': 'http://localhost:4321',
     },
   },

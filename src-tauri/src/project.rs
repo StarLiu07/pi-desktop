@@ -127,6 +127,42 @@ pub fn pick_project() -> Option<String> {
         .map(|p| p.to_string_lossy().to_string())
 }
 
+/// Live validation for the add-project dialog — the frontend (WebView) has no
+/// filesystem access, so it asks us whether a typed path exists and is a
+/// folder. A relative path is rejected outright.
+#[derive(Serialize, Clone)]
+pub struct ProjectPathInfo {
+    pub exists: bool,
+    pub is_dir: bool,
+}
+
+#[tauri::command]
+pub fn project_path_info(dir: String) -> Result<ProjectPathInfo, String> {
+    let p = Path::new(dir.trim());
+    if !p.is_absolute() {
+        return Err("请输入绝对路径".to_string());
+    }
+    Ok(ProjectPathInfo {
+        exists: p.exists(),
+        is_dir: p.is_dir(),
+    })
+}
+
+/// Create the project folder for a path that doesn't exist yet (the
+/// add-project dialog's "创建并添加" flow). Idempotent: an existing folder is
+/// a no-op, a non-folder file is an error.
+#[tauri::command]
+pub fn create_project_dir(dir: String) -> Result<(), String> {
+    let p = Path::new(dir.trim());
+    if !p.is_absolute() {
+        return Err("请输入绝对路径".to_string());
+    }
+    if p.exists() && !p.is_dir() {
+        return Err(format!("路径已存在但不是文件夹: {}", dir));
+    }
+    std::fs::create_dir_all(p).map_err(|e| format!("创建文件夹失败: {}", e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -164,5 +200,49 @@ mod tests {
         prune(&mut cfg);
         assert_eq!(cfg.current, None);
         assert_eq!(cfg.recent.len(), 1);
+    }
+
+    /// Unique scratch dir for the filesystem tests (no tempfile dependency).
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "pi-desktop-test-{}-{}",
+            std::process::id(),
+            name
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    #[test]
+    fn path_info_distinguishes_kinds() {
+        let dir = scratch("pathinfo");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("a.txt");
+        std::fs::write(&file, "x").unwrap();
+
+        let info = project_path_info(dir.to_string_lossy().to_string()).unwrap();
+        assert!(info.exists && info.is_dir);
+        let info = project_path_info(file.to_string_lossy().to_string()).unwrap();
+        assert!(info.exists && !info.is_dir);
+        let info = project_path_info(dir.join("missing").to_string_lossy().to_string()).unwrap();
+        assert!(!info.exists && !info.is_dir);
+        assert!(project_path_info("relative/path".to_string()).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn create_dir_makes_missing_folder_and_is_idempotent() {
+        let dir = scratch("createdir");
+        assert!(!dir.exists());
+        create_project_dir(dir.to_string_lossy().to_string()).unwrap();
+        assert!(dir.is_dir());
+        // Idempotent second call.
+        create_project_dir(dir.to_string_lossy().to_string()).unwrap();
+        // A file in the way is an error.
+        let file = dir.join("a.txt");
+        std::fs::write(&file, "x").unwrap();
+        assert!(create_project_dir(file.to_string_lossy().to_string()).is_err());
+        assert!(create_project_dir("relative/path".to_string()).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
