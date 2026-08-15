@@ -3,6 +3,17 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.22] - 2026-08-15
+
+### Fixes
+- 模型选择器按「供应商 + 模型 id」唯一化：pi 的模型目录里同一 id 会出现在多个供应商下
+  （实测 `deepseek-v4-flash` 同时存在于 deepseek / opencode-go / jbbtoken），旧代码用
+  裸 id 当选项值导致同 id 的全部选项一起打勾、且点击非首个供应商条目时 `find()` 仍
+  切到第一家。现在选项键为 `provider::id`、`setModel` 精确匹配双字段，勾选唯一、
+  切换真实生效；触发器上同时显示当前供应商名
+- 新增 spike/e2e-modelprovider.mjs 回归（对真实 pi 断言：菜单全表仅 1 个 ✓、
+  切换 opencode-go 后 ✓ 移到对应分组且触发器显示该供应商）
+
 ## [0.1.21] - 2026-08-15
 
 ### Features

@@ -38,9 +38,19 @@ function thinkingOptions(model: ModelInfo | null): SelectorOption[] {
   );
 }
 
+/**
+ * Option key for a model. Model ids are NOT unique across providers — pi
+ * serves e.g. `deepseek-v4-flash` under deepseek / opencode-go / jbbtoken
+ * alike — so the key must carry the provider; pi's own set_model RPC takes
+ * provider + modelId for the same reason.
+ */
+function modelKey(m: ModelInfo): string {
+  return `${m.provider ?? ''}::${m.id}`;
+}
+
 /** Models grouped by provider, preserving first-seen order. */
 function modelOptions(models: ModelInfo[]): SelectorOption[] {
-  return models.map((m) => ({ value: m.id, label: m.name, group: m.provider }));
+  return models.map((m) => ({ value: modelKey(m), label: m.name, group: m.provider }));
 }
 
 export function InputBar() {
@@ -164,12 +174,15 @@ export function InputBar() {
         <Selector
           className="inputbox-select"
           options={modelOptions(models)}
-          value={currentModel?.id ?? ''}
+          value={currentModel ? modelKey(currentModel) : ''}
           onChange={setModel}
           title={currentModel ? `${currentModel.name} · ${currentModel.provider}` : '切换模型'}
           alignRight
         >
           <span className="sel-name">{currentModel?.name ?? '选择模型'}</span>
+          {currentModel?.provider && (
+            <span className="sel-prov">{currentModel.provider}</span>
+          )}
         </Selector>
         {agentActive ? (
           <button className="stop-btn" onClick={() => abort()}>

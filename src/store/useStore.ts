@@ -680,8 +680,15 @@ export const useStore = create<Store>((set, get) => {
       await rpc({ type: 'abort' }).catch(() => null);
     },
 
-    setModel: async (modelId) => {
-      const model = get().models.find((m) => m.id === modelId);
+    setModel: async (key) => {
+      // Key = `${provider}::${id}` (model ids collide across providers, so
+      // the selector keys on provider+id; see modelKey in InputBar.tsx).
+      const sep = key.indexOf('::');
+      const provider = sep >= 0 ? key.slice(0, sep) : '';
+      const modelId = sep >= 0 ? key.slice(sep + 2) : key;
+      const model = get().models.find(
+        (m) => m.id === modelId && (m.provider ?? '') === provider,
+      );
       if (!model) return;
       await rpc({ type: 'set_model', provider: model.provider, modelId: model.id }).catch(() => null);
       const state = await rpc({ type: 'get_state' }).catch(() => null);
