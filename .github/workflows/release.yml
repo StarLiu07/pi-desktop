@@ -1,4 +1,4 @@
-# 打 v* 标签时自动构建 Windows 安装包并发布到 GitHub Releases（draft）。
+# 打 v* 标签时自动构建 Windows 安装包并发布到 GitHub Releases（tag 即发布）。
 # 也可在 Actions 页面手动触发（workflow_dispatch）。
 # 流程：检出 → Node 22 + MSYS2 (mingw-w64) + Rust GNU target → npm ci → tauri build → 上传产物
 name: Release
@@ -60,5 +60,5 @@ jobs:
             - `.msi` / `.exe` 安装包或便携版 `pi-desktop.exe` 见下方 Assets
 
             首次运行需已安装 pi CLI（`npm install -g @earendil-works/pi-coding-agent`）。
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
