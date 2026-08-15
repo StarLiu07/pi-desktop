@@ -323,7 +323,7 @@ select:focus {
   flex: 1;
 }
 
-/* The 「＋」in the 项目 header is hidden until the header is hovered
+/* The 「＋」in section headers is hidden until the header is hovered
    (or keyboard-focused) — ZCode/Codex style reveal-on-hover. */
 .sidebar-header .section-add {
   opacity: 0;
@@ -335,6 +335,25 @@ select:focus {
 .sidebar-header:focus-within .section-add {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* The 项目 header row doubles as the module collapse/expand control. */
+.sidebar-header.proj-header {
+  cursor: pointer;
+  user-select: none;
+  border-radius: 6px;
+  margin: 4px 6px 0;
+  padding: 8px 8px;
+}
+
+.sidebar-header.proj-header:hover {
+  background: var(--bg-element);
+}
+
+.sidebar-header.proj-header .chev {
+  font-size: 9px;
+  opacity: 0.7;
+  flex-shrink: 0;
 }
 
 /* One recent-project row in the 项目 section; click switches (restart pi). */
@@ -407,8 +426,10 @@ select:focus {
   background: var(--bg-hover);
 }
 
+/* Session search sits at the very top of the sidebar, above both modules. */
 .sidebar-search {
-  margin: 0 10px 8px;
+  flex-shrink: 0;
+  margin: 8px 10px 4px;
   width: calc(100% - 20px);
   padding: 5px 9px;
   font-size: 12px;

@@ -2,6 +2,17 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
 import type { SessionListItem } from '../rpc/bridge';
 
+/** localStorage key for the collapsed 项目 module (persists across restarts). */
+const PROJ_COLLAPSE_KEY = 'pi-desktop.sidebar.proj-collapsed';
+
+function loadProjCollapsed(): boolean {
+  try {
+    return localStorage.getItem(PROJ_COLLAPSE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 /** localStorage key for collapsed project groups (persists across restarts). */
 const COLLAPSE_KEY = 'pi-desktop.sidebar.collapsed';
 
@@ -69,10 +80,24 @@ export function Sidebar() {
   const setProject = useStore((s) => s.setProject);
   const openAddProject = useStore((s) => s.openAddProject);
   const [filter, setFilter] = useState('');
+  // The 项目 module is collapsible as a whole; state persists to localStorage.
+  const [projCollapsed, setProjCollapsed] = useState(loadProjCollapsed);
   // Collapsed project groups (by cwd key), persisted to localStorage.
   const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsed);
   // Groups expanded past GROUP_PREVIEW via 「显示更多」, persisted too.
   const [showAll, setShowAll] = useState<Set<string>>(loadShowAll);
+
+  const toggleProjCollapsed = () => {
+    setProjCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(PROJ_COLLAPSE_KEY, next ? '1' : '0');
+      } catch {
+        /* storage unavailable (private mode etc.) — collapse still works */
+      }
+      return next;
+    });
+  };
 
   const toggleGroup = (key: string) => {
     setCollapsed((prev) => {
@@ -142,52 +167,71 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
+      {/* Search lives at the very top of the sidebar, above both modules. */}
+      <input
+        className="sidebar-search"
+        type="text"
+        placeholder="搜索会话…"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+      />
       {/* 项目 — ZCode/Codex style: projects and tasks live in separate
           sections; the 「＋」only appears while hovering the header. */}
       <div className="sidebar-section proj">
-        <div className="sidebar-header proj-header">
+        {/* The header row is the collapse control: clicking it (or the
+            chevron) folds/unfolds the project list; the 「＋」is a sibling
+            action that appears only on hover (CSS) and stops propagation. */}
+        <div
+          className={`sidebar-header proj-header${projCollapsed ? ' collapsed' : ''}`}
+          role="button"
+          aria-expanded={!projCollapsed}
+          title={projCollapsed ? '展开项目列表' : '折叠项目列表'}
+          onClick={toggleProjCollapsed}
+        >
+          <span className="chev">{projCollapsed ? '▸' : '▾'}</span>
           <span>项目</span>
           <div className="sidebar-actions">
-            <button className="section-add" onClick={openAddProject} title="添加项目">
+            <button
+              className="section-add"
+              onClick={(e) => {
+                e.stopPropagation();
+                openAddProject();
+              }}
+              title="新建项目"
+            >
               +
             </button>
           </div>
         </div>
-        {recentProjects.length === 0 ? (
-          <div className="sidebar-empty">暂无项目</div>
-        ) : (
-          recentProjects.map((p) => (
-            <div
-              key={p}
-              className={`project-item${currentProject && samePath(p, currentProject) ? ' current' : ''}`}
-              onClick={() => setProject(p)}
-              title={p}
-            >
-              <span className="icon">📁</span>
-              <span className="name">{baseName(p)}</span>
-              {currentProject && samePath(p, currentProject) && (
-                <span className="cur">当前</span>
-              )}
-            </div>
-          ))
-        )}
+        {!projCollapsed &&
+          (recentProjects.length === 0 ? (
+            <div className="sidebar-empty">暂无项目</div>
+          ) : (
+            recentProjects.map((p) => (
+              <div
+                key={p}
+                className={`project-item${currentProject && samePath(p, currentProject) ? ' current' : ''}`}
+                onClick={() => setProject(p)}
+                title={p}
+              >
+                <span className="icon">📁</span>
+                <span className="name">{baseName(p)}</span>
+                {currentProject && samePath(p, currentProject) && (
+                  <span className="cur">当前</span>
+                )}
+              </div>
+            ))
+          ))}
       </div>
       <div className="sidebar-section tasks">
         <div className="sidebar-header">
           <span>任务</span>
           <div className="sidebar-actions">
-            <button onClick={() => newSession()} title="新建会话">
+            <button className="section-add" onClick={() => newSession()} title="新建任务">
               +
             </button>
           </div>
         </div>
-        <input
-          className="sidebar-search"
-          type="text"
-          placeholder="搜索会话…"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
       <div className="session-tree">
         {groups === null ? (
           // Search mode: flat list.

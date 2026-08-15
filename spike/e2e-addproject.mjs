@@ -174,10 +174,30 @@ const main = async () => {
   if (split.curBadges !== 0) throw new Error('no project should be current yet');
   await shot(cdp, '0-sidebar-sections.png');
 
-  // S2) The 添加项目 ＋ is hidden until the header is hovered.
+  // S2) The 添加项目 ＋ in both section headers is hidden until hovered.
   const op0 = await evalJs(cdp, `getComputedStyle(document.querySelector('.proj-header .section-add')).opacity`);
-  console.log('add-button opacity before hover:', op0);
-  if (op0 !== '0') throw new Error('＋ should be hidden by default, opacity=' + op0);
+  const opTasks0 = await evalJs(cdp, `getComputedStyle(document.querySelector('.sidebar-section.tasks .sidebar-header .section-add')).opacity`);
+  console.log('add-button opacity before hover:', op0, '(tasks:', opTasks0 + ')');
+  if (op0 !== '0' || opTasks0 !== '0') throw new Error('＋ should be hidden by default, opacity=' + op0 + '/' + opTasks0);
+
+  // S2b) The 项目 module header folds/unfolds the project list (chevron follows).
+  const before = await evalJs(cdp, `document.querySelectorAll('.project-item').length`);
+  await evalJs(cdp, `document.querySelector('.proj-header').click()`);
+  await sleep(300);
+  const folded = await evalJs(cdp, `(() => ({
+    items: document.querySelectorAll('.project-item').length,
+    chev: document.querySelector('.proj-header .chev').textContent,
+  }))()`);
+  console.log('after fold:', JSON.stringify(folded));
+  if (folded.items !== 0 || folded.chev !== '▸') throw new Error('project list should be hidden after fold: ' + JSON.stringify(folded));
+  await evalJs(cdp, `document.querySelector('.proj-header').click()`);
+  await sleep(300);
+  const unfolded = await evalJs(cdp, `(() => ({
+    items: document.querySelectorAll('.project-item').length,
+    chev: document.querySelector('.proj-header .chev').textContent,
+  }))()`);
+  console.log('after unfold:', JSON.stringify(unfolded));
+  if (unfolded.items !== before || unfolded.chev !== '▾') throw new Error('project list should be back after unfold: ' + JSON.stringify(unfolded));
 
   // S3) Real mouse move onto the 项目 header reveals it (CSS :hover).
   const rect = await evalJs(cdp, `(() => {
@@ -192,6 +212,19 @@ const main = async () => {
   console.log('add-button opacity on hover:', op1);
   if (op1 !== '1') throw new Error('＋ should appear on hover, opacity=' + op1);
   await shot(cdp, '0b-hover-reveal.png');
+
+  // S3b) The 任务 header reveals its ＋ on hover the same way.
+  const trect = await evalJs(cdp, `(() => {
+    const r = document.querySelector('.sidebar-section.tasks .sidebar-header').getBoundingClientRect();
+    return { x: r.x, y: r.y, w: r.width, h: r.height };
+  })()`);
+  await cdp.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved', x: trect.x + trect.w / 2, y: trect.y + trect.h / 2,
+  });
+  await sleep(400);
+  const opTasks1 = await evalJs(cdp, `getComputedStyle(document.querySelector('.sidebar-section.tasks .sidebar-header .section-add')).opacity`);
+  console.log('tasks add-button opacity on hover:', opTasks1);
+  if (opTasks1 !== '1') throw new Error('tasks ＋ should appear on hover, opacity=' + opTasks1);
 
   // S4) Clicking it opens the add-project dialog; cancel keeps everything.
   await evalJs(cdp, `document.querySelector('.proj-header .section-add').click()`);
@@ -224,21 +257,19 @@ const main = async () => {
   if (!badge.some((b) => b.name === SEED_BASE && b.cur)) throw new Error('当前 badge missing on seed project');
   await shot(cdp, '0c-sidebar-current.png');
 
-  // 1) Open the project menu — the entry is 「添加项目…」 now.
+  // 1) The project menu no longer offers 添加项目 (moved to the sidebar header).
   await evalJs(cdp, `document.querySelector('.inputbox-tools .project-select .status-select').click()`);
   await sleep(400);
   const menuText = await evalJs(cdp, `document.querySelector('.selector-menu').textContent`);
   console.log('menu contents:', JSON.stringify(menuText));
-  if (!menuText.includes('添加项目')) throw new Error('添加项目 option missing from menu');
+  if (menuText.includes('添加项目')) throw new Error('添加项目 option should have moved out of the chat-area menu');
   await shot(cdp, '1-menu.png');
+  // Close the menu again.
+  await evalJs(cdp, `document.querySelector('.inputbox-tools .project-select .status-select').click()`);
+  await sleep(300);
 
-  // 2) Open the dialog via the menu option.
-  await evalJs(cdp, `(() => {
-    const o = [...document.querySelectorAll('.selector-menu .selector-option')]
-      .find((o) => o.textContent.includes('添加项目'));
-    if (!o) throw new Error('option not found');
-    o.click();
-  })()`);
+  // 2) Open the dialog via the sidebar 项目 header ＋ (the only entry now).
+  await evalJs(cdp, `document.querySelector('.proj-header .section-add').click()`);
   await sleep(400);
   const title = await evalJs(cdp, `document.querySelector('.modal.add-project h2')?.textContent ?? null`);
   console.log('dialog title:', title);
@@ -289,13 +320,7 @@ const main = async () => {
   await sleep(300);
 
   // 6) A typed *file* path is rejected live (button stays disabled).
-  await evalJs(cdp, `document.querySelector('.inputbox-tools .project-select .status-select').click()`);
-  await sleep(300);
-  await evalJs(cdp, `(() => {
-    const o = [...document.querySelectorAll('.selector-menu .selector-option')]
-      .find((o) => o.textContent.includes('添加项目'));
-    o.click();
-  })()`);
+  await evalJs(cdp, `document.querySelector('.proj-header .section-add').click()`);
   await sleep(400);
   // Wait for the fresh dialog's reset (empty input) before typing.
   for (let i = 0; i < 20; i++) {

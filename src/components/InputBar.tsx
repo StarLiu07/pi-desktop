@@ -9,9 +9,6 @@ import {
   refreshCnyRate,
 } from '../lib/usage';
 
-/** Magic option value: open the add-project dialog instead of selecting. */
-const ADD_PROJECT = '__add_project__';
-
 /** Last path segment of an absolute path (`D:\a\b` → `b`). */
 function baseName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
@@ -60,7 +57,6 @@ export function InputBar() {
   const currentProject = useStore((s) => s.currentProject);
   const recentProjects = useStore((s) => s.recentProjects);
   const setProject = useStore((s) => s.setProject);
-  const openAddProject = useStore((s) => s.openAddProject);
 
   const projectOptions: SelectorOption[] = [
     {
@@ -74,17 +70,7 @@ export function InputBar() {
       hint: p,
       group: '最近项目',
     })),
-    {
-      value: ADD_PROJECT,
-      label: '添加项目…',
-      hint: '输入路径或浏览文件夹',
-    },
   ];
-
-  const onProjectChange = (v: string) => {
-    if (v === ADD_PROJECT) openAddProject();
-    else setProject(v);
-  };
 
   const currentModel = useStore((s) => s.currentModel);
   const models = useStore((s) => s.models);
@@ -131,7 +117,7 @@ export function InputBar() {
             className="project-select"
             options={projectOptions}
             value={currentProject ?? ''}
-            onChange={onProjectChange}
+            onChange={setProject}
             title={currentProject ? `项目：${currentProject}` : '无项目（对话不绑定文件夹）'}
           >
             <span className="sel-icon">📁</span>
