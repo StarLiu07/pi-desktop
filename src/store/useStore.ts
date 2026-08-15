@@ -195,6 +195,25 @@ export const useStore = create<Store>((set, get) => {
     });
   };
 
+  /** Bind the active tab to the session pi is on right now.
+   *
+   *  pi's event stream carries NO event with the session file (only
+   *  `get_state` knows it), so a tab that creates its session via
+   *  `new_session` would otherwise never learn its own file — and every
+   *  prompt would spawn a fresh session: each message lands in its own
+   *  file and the assistant loses all previous context. */
+  const learnActiveSession = async () => {
+    const state = await rpc({ type: 'get_state' }).catch(() => null);
+    if (!state?.success || !state.data) return;
+    const d = state.data as Record<string, unknown>;
+    if (!d.sessionFile) return;
+    updateTab((t) => ({
+      ...t,
+      sessionId: (d.sessionId as string) ?? t.sessionId,
+      sessionPath: d.sessionFile as string,
+    }));
+  };
+
   /** Sync pi's current session with the UI: fetch state + messages for the active tab. */
   const syncActiveSession = async () => {
     const tab = get().tabs[get().activeTabIndex];
@@ -531,6 +550,8 @@ export const useStore = create<Store>((set, get) => {
         const tabs = [...s.tabs, emptyTab()];
         return { tabs, activeTabIndex: tabs.length - 1 };
       });
+      // Bind the new tab to the session pi just created — see learnActiveSession.
+      await learnActiveSession();
     },
 
     closeTab: (index) => {
@@ -577,8 +598,10 @@ export const useStore = create<Store>((set, get) => {
         await rpc({ type: 'switch_session', sessionPath: target.sessionId }).catch(() => null);
         await syncActiveSession();
       } else {
-        // Empty tab: make sure pi's next prompt lands in a fresh session.
+        // Empty tab: make sure pi's next prompt lands in a fresh session,
+        // and bind this tab to it — see learnActiveSession.
         await rpc({ type: 'new_session' }).catch(() => null);
+        await learnActiveSession();
       }
     },
 
@@ -660,6 +683,9 @@ export const useStore = create<Store>((set, get) => {
       if (!tab.sessionPath) {
         // First message of a fresh tab: ensure a new session file is created.
         await rpc({ type: 'new_session' }).catch(() => null);
+        // Learn which file that is BEFORE prompting, or the next message in
+        // this tab would create yet another session — see learnActiveSession.
+        await learnActiveSession();
       }
       await rpc({
         type: 'prompt',

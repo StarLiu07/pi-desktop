@@ -3,6 +3,20 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.24] - 2026-08-15
+
+### Fixes
+- 新对话里连发多条消息不再被拆成多个会话：原实现里空 tab 每次发消息都会先发
+  `new_session`（tab 的 `sessionPath` 只有 `get_state` 才知道，而 pi 事件流不携带
+  sessionFile，前端只在启动/切 tab 时查过）——结果一个对话发的第 2、3 条消息各自
+  新建会话文件，每条消息都丢掉前面的上下文。现在 `new_session` 后立即 `get_state`
+  学到会话文件并绑定到 tab（「＋」新建、首次发消息、切到空 tab 三条路径都覆盖），
+  后续消息留在同一会话
+- 新增 spike/e2e-sessionbind.mjs 回归（假 bridge + 脚本化两回合）：两次发消息只发
+  一次 `new_session`、两次 prompt 落在同一会话文件、两条消息渲染在同一 tab，5 项
+  断言（无修复时 3 项 FAIL）；另附 spike/probe-fixverify.mjs 真实 pi 探针：修复后
+  流程两条消息只生成 1 个会话文件（2 条 user 消息）
+
 ## [0.1.23] - 2026-08-15
 
 ### Fixes
