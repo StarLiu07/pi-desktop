@@ -3,6 +3,17 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.23] - 2026-08-15
+
+### Fixes
+- 聊天区智能滚动不再漏掉「内容高度变化」：原实现只在消息计数变化时贴底滚动，
+  而流式增量、思考块在 message_end 折叠、工具卡片更新、图片加载等都不改变计数——
+  结果是回复在视口下方越长越多、思考块折叠后对话不自动跟进到底，只能手动下滑。
+  改为 ResizeObserver 监听聊天内容高度，贴底（80px 阈值内）时自动跟随，
+  「读旧消息不被拽走」的规则不变
+- 新增 spike/e2e-scroll.mjs 回归（假 bridge + 脚本化长流式回合）：流式全程贴底、
+  中途上滚不被拽回、思考块折叠后仍贴底，4 项断言
+
 ## [0.1.22] - 2026-08-15
 
 ### Fixes

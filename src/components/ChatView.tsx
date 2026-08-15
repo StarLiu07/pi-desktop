@@ -10,19 +10,30 @@ export function ChatView() {
   const activeTabIndex = useStore((s) => s.activeTabIndex);
   const status = useStore((s) => s.status);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
 
-  const count =
-    (tab?.messages.length ?? 0) +
-    (tab?.streaming ? 1 : 0) +
-    (tab?.pendingUserText ? 1 : 0);
+  const isEmpty =
+    tab?.messages.length === 0 &&
+    !tab?.streaming &&
+    !tab?.pendingUserText &&
+    !tab?.agentActive;
 
-  // Follow new content only while the user is near the bottom — reading an old
-  // message must not be yanked down by incoming deltas.
+  // Follow content growth (and shrink) while the user is near the bottom —
+  // reading an old message must not be yanked by incoming deltas. The chat
+  // height changes without the message count changing whenever the thinking
+  // block collapses at message_end, streamed deltas land, tool cards update
+  // or images load, so a ResizeObserver (not a count-keyed effect) drives it.
   useEffect(() => {
-    if (!stick.current) return;
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [count]);
+    const inner = innerRef.current;
+    if (!inner) return;
+    const ro = new ResizeObserver(() => {
+      if (!stick.current) return;
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    });
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, [isEmpty]);
 
   // Switching tabs always lands at the bottom of the new conversation.
   useEffect(() => {
@@ -31,12 +42,6 @@ export function ChatView() {
   }, [activeTabIndex]);
 
   if (!tab) return null;
-
-  const isEmpty =
-    tab.messages.length === 0 &&
-    !tab.streaming &&
-    !tab.pendingUserText &&
-    !tab.agentActive;
 
   return (
     <div
@@ -62,7 +67,7 @@ export function ChatView() {
           </div>
         )
       ) : (
-        <div className="chat-inner">
+        <div className="chat-inner" ref={innerRef}>
           {tab.notice && <div className="notice">{tab.notice}</div>}
           {tab.willRetry && <div className="retry-note">上次响应已重试，可能部分输出被替换</div>}
           {tab.messages.map((m, i) => (
