@@ -3,6 +3,14 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.25] - 2026-08-15
+
+### Fixes
+- 侧边栏「项目」标题不再被挤到中间：标题行有 ▾ 箭头、文字、「＋」三个子元素，
+  `justify-content: space-between` 会把中间的「项目」文字居中，而「任务」只有
+  两个字元素所以靠左——两个标题一左一中看起来歪歪扭扭。改为左对齐 + 「＋」
+  `margin-left: auto` 顶到最右，两个标题的「＋」现在水平对齐
+
 ## [0.1.24] - 2026-08-15
 
 ### Fixes

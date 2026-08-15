@@ -337,13 +337,20 @@ select:focus {
   pointer-events: auto;
 }
 
-/* The 项目 header row doubles as the module collapse/expand control. */
+/* The 项目 header row doubles as the module collapse/expand control. It has
+   three children (chevron, label, ＋) — space-between would center the label,
+   so left-align and push the actions to the far end instead. */
 .sidebar-header.proj-header {
   cursor: pointer;
   user-select: none;
   border-radius: 6px;
   margin: 4px 6px 0;
   padding: 8px 8px;
+  justify-content: flex-start;
+}
+
+.sidebar-header.proj-header .sidebar-actions {
+  margin-left: auto;
 }
 
 .sidebar-header.proj-header:hover {
