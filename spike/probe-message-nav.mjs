@@ -135,8 +135,10 @@ const railState = `(() => {
   const activeIdx = [...markers].findIndex((m) => m.classList.contains('active'));
   const activeMarker = activeIdx >= 0 ? markers[activeIdx] : null;
   const otherMarker = markers.length > 1 ? markers[(activeIdx + 1) % markers.length] : null;
-  const aStyle = activeMarker ? getComputedStyle(activeMarker) : null;
-  const oStyle = otherMarker ? getComputedStyle(otherMarker) : null;
+  // The visible bar lives in ::before; the button itself is the big hit area.
+  const aStyle = activeMarker ? getComputedStyle(activeMarker, '::before') : null;
+  const oStyle = otherMarker ? getComputedStyle(otherMarker, '::before') : null;
+  const aBtn = activeMarker ? getComputedStyle(activeMarker) : null;
   return {
     markerCount: markers.length,
     activeIdx,
@@ -145,6 +147,8 @@ const railState = `(() => {
     activeBg: aStyle ? aStyle.backgroundColor : null,
     otherW: oStyle ? oStyle.width : null,
     otherBg: oStyle ? oStyle.backgroundColor : null,
+    hitW: aBtn ? aBtn.width : null,
+    hitH: aBtn ? aBtn.height : null,
     fracs: [...markers].map((m) => parseFloat(m.style.top)),
     titles: [...markers].map((m) => m.title || ''),
     scrollTop: chat.scrollTop,
@@ -221,6 +225,16 @@ if (s.activeW !== null && s.otherW !== null) {
   check(parseFloat(s.activeW) > parseFloat(s.otherW), `active bar wider than inactive (${s.activeW} vs ${s.otherW})`);
   check(s.activeBg === 'rgb(255, 255, 255)', `active bar is white (${s.activeBg})`);
   check(s.otherBg !== 'rgb(255, 255, 255)', `inactive bar is dim (${s.otherBg})`);
+}
+// Regression: the clickable zone must be far bigger than the 2px bar itself —
+// the button is a full-rail-width × 16px transparent hit area, the slim white
+// bar is only its ::before decoration. (Previously the bar was the button, so
+// switching messages needed pixel-precise clicks.)
+if (s.hitW !== null && s.hitH !== null) {
+  check(parseFloat(s.hitW) >= 40 && parseFloat(s.hitH) >= 14,
+    `marker hit area is big and easy to aim (${s.hitW}×${s.hitH})`);
+  check(parseFloat(s.hitH) > parseFloat(s.activeH || s.otherH || '0'),
+    `hit area taller than the visible bar (${s.hitH} vs ${s.activeH || s.otherH})`);
 }
 
 // Scroll to top (then a wheel gesture so the pin is free): the first turn

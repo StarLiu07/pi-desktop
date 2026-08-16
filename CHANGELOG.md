@@ -3,6 +3,18 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.32] - 2026-08-16
+
+### Fixes
+- 消息导航 rail 的标记**点击命中区放大**：之前白条本身就是按钮（24×2px），
+  切换消息必须像素级精准点击，很难瞄准；现在按钮是整条 rail 宽（44px）×
+  16px 高的透明命中区，视觉白条移到 ::before 伪元素里（外观不变：24×2 暗
+  条、hover 30px 变亮、选中 38×3 纯白），hover 时整个命中区亮一层淡背景
+  提示可点范围；相邻标记 14px 步距只重叠 2px，重叠区命中最上层（视觉上也
+  在最上层），所见即所得
+- spike/probe-message-nav.mjs 改测 ::before 几何（active 白/宽于 inactive
+  不变）+ 新增 2 断言：命中区 ≥40×14px、命中区高度大于视觉条（19 断言）
+
 ## [0.1.31] - 2026-08-16
 
 ### Features
