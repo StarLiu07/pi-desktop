@@ -2,16 +2,24 @@
 // per user message. Click a bar to jump to that message; the bar for the
 // message currently crossing the "cursor line" (100px below the viewport top)
 // is highlighted white. A click pins the highlight until the user scrolls —
-// same model as ZCode's session message nav.
-import { useEffect, useRef, useState } from 'react';
+// same model as ZCode's session message nav. Hovering a bar floats a preview
+// of that user message next to the rail.
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { useStore } from '../store/useStore';
-import type { ChatMessage } from '../rpc/types';
+import type { ContentPart } from '../rpc/types';
+
+// Deferred chunk (same lazy stack as Message.tsx); loads when the first
+// preview opens, falls back to plain text while loading.
+const Markdown = lazy(() => import('./Markdown').then((m) => ({ default: m.Markdown })));
 
 /** Viewport line (px from the chat box top) that decides the highlighted bar. */
 const CURSOR_LINE = 100;
 /** Hide the rail when the centered message column reaches its right edge. */
 const RAIL_OVERLAP = 48;
+/** Grace (ms) to move the pointer from a 2px bar across the gap onto its
+ * preview popover before the popover closes. */
+const HOVER_GRACE = 250;
 
 interface Marker {
   idx: number;
@@ -22,14 +30,15 @@ interface Marker {
   bottom: number;
 }
 
-function previewOf(msg: ChatMessage): string {
-  const parts = Array.isArray(msg.content) ? msg.content : [];
-  const text = parts
-    .map((p) => (p && typeof p === 'object' && typeof p.text === 'string' ? p.text : ''))
-    .join(' ')
-    .trim();
-  const line = text.split('\n')[0];
-  return line.length > 40 ? `${line.slice(0, 40)}…` : line;
+/** Recursively extract plain text from a content part (tool results nest arrays). */
+function partText(c: ContentPart): string {
+  if (typeof c.text === 'string') return c.text;
+  if (Array.isArray(c.content)) {
+    return c.content
+      .map((x) => (typeof x === 'string' ? x : partText(x as ContentPart)))
+      .join('\n');
+  }
+  return '';
 }
 
 export function MessageNav({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
@@ -41,10 +50,48 @@ export function MessageNav({ scrollRef }: { scrollRef: RefObject<HTMLDivElement 
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [active, setActive] = useState(-1);
   const [hidden, setHidden] = useState(false);
+  /** Index of the bar currently hovered, -1 when none — drives the preview popover. */
+  const [hover, setHover] = useState(-1);
   /** Set while the highlight is pinned to a clicked bar (until the user scrolls). */
   const pinnedRef = useRef(false);
   const lastKeyRef = useRef('');
   const activeRef = useRef(-1);
+  const hideTimerRef = useRef(0);
+  /** True while the pointer is down inside the popover (text selection) — the
+   * popover must not hide until the drag ends. */
+  const suppressHideRef = useRef(false);
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const popRef = useRef<HTMLDivElement | null>(null);
+
+  // Hover-intent show/hide: leaving a bar does not hide the popover
+  // immediately — a short grace lets the pointer cross the gap onto the
+  // popover itself (a 2px bar is a hard target otherwise).
+  const showPreview = (idx: number) => {
+    window.clearTimeout(hideTimerRef.current);
+    suppressHideRef.current = false;
+    setHover(idx);
+  };
+  const scheduleHide = () => {
+    if (suppressHideRef.current) return;
+    window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(() => setHover(-1), HOVER_GRACE);
+  };
+
+  // Keep the popover inside the chat: center it on the hovered bar, clamped
+  // to the rail's bounds so a tall preview cannot cross the window edge.
+  useLayoutEffect(() => {
+    const pop = popRef.current;
+    const nav = railRef.current;
+    if (!pop || !nav || hover < 0) return;
+    const y = (markers[hover]?.frac ?? 0.5) * nav.clientHeight;
+    const h = pop.offsetHeight;
+    const maxTop = Math.max(4, nav.clientHeight - h - 4);
+    pop.style.top = `${Math.min(Math.max(y - h / 2, 4), maxTop)}px`;
+    pop.style.transform = 'translateY(0)';
+  }, [hover, markers]);
+
+  // Unmount cleanup for the hide timer.
+  useEffect(() => () => window.clearTimeout(hideTimerRef.current), []);
 
   // Measure turn spans inside the chat box, then map them onto the rail.
   // Runs on scroll (rAF-throttled) and whenever content or the viewport size
@@ -219,21 +266,45 @@ export function MessageNav({ scrollRef }: { scrollRef: RefObject<HTMLDivElement 
   if (userCount < 2 || hidden || markers.length === 0) return null;
 
   return (
-    <div className="msg-nav">
-      {markers.map((m) => {
-        const msg = userMsgs[m.idx];
-        return (
-          <button
-            key={m.idx}
-            type="button"
-            className={`msg-nav-marker${m.idx === active ? ' active' : ''}`}
-            style={{ top: `${(m.frac * 100).toFixed(2)}%` }}
-            title={msg ? previewOf(msg) : `消息 ${m.idx + 1}`}
-            aria-label={`跳转到第 ${m.idx + 1} 条消息`}
-            onClick={() => select(m.idx)}
-          />
-        );
-      })}
+    <div className="msg-nav" ref={railRef}>
+      {markers.map((m) => (
+        <button
+          key={m.idx}
+          type="button"
+          className={`msg-nav-marker${m.idx === active ? ' active' : ''}`}
+          style={{ top: `${(m.frac * 100).toFixed(2)}%` }}
+          aria-label={`跳转到第 ${m.idx + 1} 条消息`}
+          onClick={() => select(m.idx)}
+          onMouseEnter={() => showPreview(m.idx)}
+          onMouseLeave={scheduleHide}
+          onFocus={() => showPreview(m.idx)}
+          onBlur={scheduleHide}
+        />
+      ))}
+      {hover >= 0 && markers[hover] && userMsgs[hover] && (
+        <div
+          ref={popRef}
+          className="msg-nav-pop md"
+          role="tooltip"
+          onMouseEnter={() => window.clearTimeout(hideTimerRef.current)}
+          onMouseLeave={scheduleHide}
+          onPointerDown={() => {
+            suppressHideRef.current = true;
+          }}
+          onPointerUp={() => {
+            suppressHideRef.current = false;
+            if (popRef.current?.matches(':hover')) {
+              window.clearTimeout(hideTimerRef.current);
+            } else {
+              scheduleHide();
+            }
+          }}
+        >
+          <Suspense fallback={<div>{userMsgs[hover].content.map(partText).join('\n')}</div>}>
+            <Markdown text={userMsgs[hover].content.map(partText).join('\n')} />
+          </Suspense>
+        </div>
+      )}
     </div>
   );
 }

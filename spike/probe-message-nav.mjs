@@ -282,10 +282,59 @@ s = await cdp.eval(railState);
 check(s.activeIdx === 1, `Ctrl+Alt+] jumps to the next message (active=${s.activeIdx})`);
 check(s.rowTopRel[1] >= 95 && s.rowTopRel[1] <= 105, `next message lands on the cursor line (top=${s.rowTopRel[1]}px)`);
 
-// Markers carry a tooltip with the message preview.
-s = await cdp.eval(railState);
-check(s.titles.length === 4 && s.titles.every((t) => t.length > 0), 'markers have message-preview tooltips', JSON.stringify(s.titles));
-check(s.titles[0].includes('标记一'), `tooltip shows the first message text (${s.titles[0]})`);
+// Hovering a bar floats a preview popover with the hovered user message.
+// Move the real mouse onto marker 1 (the messages are 标记一..标记四).
+const markerBox = await cdp.eval(`(() => {
+  const r = document.querySelectorAll('.msg-nav-marker')[1].getBoundingClientRect();
+  return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+})()`);
+await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: markerBox.x, y: markerBox.y });
+await sleep(350);
+const popState = await cdp.eval(`(() => {
+  const pop = document.querySelector('.msg-nav-pop');
+  if (!pop) return null;
+  const r = pop.getBoundingClientRect();
+  const nav = document.querySelector('.msg-nav').getBoundingClientRect();
+  const chat = document.querySelector('.chat').getBoundingClientRect();
+  return {
+    text: pop.textContent,
+    left: Math.round(r.left - chat.left),
+    top: Math.round(r.top - chat.top),
+    width: Math.round(r.width),
+    navRight: Math.round(nav.right - chat.left),
+    codeBadges: pop.querySelectorAll('code').length,
+  };
+})()`);
+check(popState !== null, 'hovering a bar shows the preview popover');
+if (popState) {
+  check(popState.text.includes('标记二'), `popover shows the hovered message (${popState.text.slice(0, 24)}…)`);
+  check(popState.text.includes('标记三') === false, 'popover does not show other messages');
+  check(popState.left > popState.navRight + 8, `popover floats right of the rail (left=${popState.left}px, rail right=${popState.navRight}px)`);
+  check(popState.width >= 280, `popover has a readable width (${popState.width}px)`);
+}
+
+// Moving the pointer from the 2px bar onto the popover (crossing the gap)
+// must not close it — the hide grace bridges the gap.
+const popBox = await cdp.eval(`(() => {
+  const r = document.querySelector('.msg-nav-pop').getBoundingClientRect();
+  return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+})()`);
+await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: popBox.x, y: popBox.y });
+await sleep(450);
+const stillOpen = await cdp.eval(`!!document.querySelector('.msg-nav-pop')`);
+check(stillOpen, 'popover stays open while the pointer rests on it');
+
+// Screenshot with the preview open (pointer resting on the popover).
+await cdp.send('Page.captureScreenshot', { format: 'png' }).then(({ data }) => {
+  writeFileSync(join(process.cwd(), 'spike', 'probe-message-nav-hover.png'), Buffer.from(data, 'base64'));
+  console.log('[nav] saved spike/probe-message-nav-hover.png');
+}).catch(() => {});
+
+// Leaving the popover hides it.
+await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 900, y: 800 });
+await sleep(450);
+const closed = await cdp.eval(`!document.querySelector('.msg-nav-pop')`);
+check(closed, 'popover hides after the pointer leaves');
 
 await cdp.send('Page.captureScreenshot', { format: 'png' }).then(({ data }) => {
   writeFileSync(join(process.cwd(), 'spike', 'probe-message-nav.png'), Buffer.from(data, 'base64'));
