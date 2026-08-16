@@ -80,6 +80,19 @@ async function waitFor(cdp, expr, timeoutMs = 60000, label = expr) {
     if (v) { console.log(`[center] ok: ${label}`); return v; }
     await sleep(200);
   }
+  // Diagnostic dump on timeout.
+  try {
+    const diag = await cdp.eval(`({
+      textarea: !!document.querySelector('.inputbox textarea'),
+      chatInner: !!document.querySelector('.chat-inner'),
+      userRows: document.querySelectorAll('.message-row.user').length,
+      pending: !!document.querySelector('.message-row.user.pending'),
+      statusEl: document.querySelector('[class*=status]')?.className || null,
+      tabCount: document.querySelectorAll('.tab').length,
+      url: location.href,
+    })`);
+    console.log('[center] TIMEOUT diag:', JSON.stringify(diag));
+  } catch {}
   throw new Error('timeout waiting for ' + label);
 }
 
@@ -104,9 +117,12 @@ await sleep(500); // let the stream settle
 const m = await cdp.eval(`(() => {
   const chat = document.querySelector('.chat');
   const inner = document.querySelector('.chat-inner');
+  const ub = document.querySelector('.message-row.user .user-text');
   if (!chat || !inner) return null;
   const c = chat.getBoundingClientRect();
   const i = inner.getBoundingClientRect();
+  const b = ub ? ub.getBoundingClientRect() : null;
+  const cs = ub ? getComputedStyle(ub) : null;
   return {
     chatLeft: c.left, chatWidth: c.width, chatClientW: chat.clientWidth,
     innerLeft: i.left, innerWidth: i.width,
@@ -114,6 +130,12 @@ const m = await cdp.eval(`(() => {
     offset: Math.round(i.left - (c.left + (chat.clientWidth - i.width) / 2)),
     hasBubble: !!inner.querySelector('.bubble'),
     textLen: inner.innerText.length,
+    userRight: b ? Math.round(b.right) : null,
+    innerRight: Math.round(i.right),
+    userGap: b ? Math.round(i.right - b.right) : null,
+    userBg: cs ? cs.backgroundColor : null,
+    userBorder: cs ? cs.borderTopWidth : null,
+    userRadius: cs ? cs.borderTopLeftRadius : null,
   };
 })()`);
 console.log('[center] metrics:', JSON.stringify(m));
@@ -127,6 +149,12 @@ if (m) {
   // Sanity: centered means the left edge moved right vs the pre-fix layout.
   const minLeft = m.chatLeft + 44; // old layout: padding-left 44px
   check(m.innerLeft > minLeft + 40, `left edge moved right of old position`, `left ${Math.round(m.innerLeft)}px vs old ${Math.round(minLeft)}px`);
+
+  // User message bubble: right-aligned inside the centered column + styled.
+  check(m.userGap !== null && m.userGap >= -1 && m.userGap <= 1, `user bubble flush with column right edge (gap ${m.userGap}px)`);
+  check(m.userRight !== null && m.userRight > m.innerLeft + m.innerWidth / 2, `user bubble on the right half (right ${m.userRight}px)`);
+  check(m.userBg !== null && m.userBg !== 'rgba(0, 0, 0, 0)', `user bubble has background (${m.userBg})`);
+  check(m.userRadius !== null && parseFloat(m.userRadius) > 8, `user bubble has rounded corners (radius ${m.userRadius})`);
 }
 
 await cdp.send('Page.captureScreenshot', { format: 'png' }).then(({ data }) => {

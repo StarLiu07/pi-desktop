@@ -744,10 +744,15 @@ select:focus {
 
 .message-row.user {
   display: flex;
-  align-items: flex-start;
+  justify-content: flex-end;
 }
 
 .message-row.user .user-text {
+  background: var(--bg-element);
+  border: 1px solid var(--border);
+  border-radius: 12px 12px 2px 12px;
+  padding: 8px 12px;
+  max-width: 85%;
   white-space: pre-wrap;
   font-size: 13.5px;
   line-height: 1.65;

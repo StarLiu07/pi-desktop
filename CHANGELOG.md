@@ -3,6 +3,13 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.28] - 2026-08-16
+
+### Features
+- 用户消息改为右侧气泡：消息列仍整体居中，但用户消息在列内右对齐，带
+  气泡样式（--bg-element 背景 + 边框 + 12px 圆角，右下角小收角），与 AI
+  输出在视觉上明确区分；去掉用户消息前的「>」提示符（输入区保留）
+
 ## [0.1.27] - 2026-08-16
 
 ### Fixes

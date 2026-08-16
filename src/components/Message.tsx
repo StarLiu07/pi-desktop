@@ -106,7 +106,6 @@ export function MessageRow({ message, toolExecs, streaming = false }: RowProps) 
     const text = message.content.map(partText).join('\n');
     return (
       <div className="message-row user">
-        <span className="prompt">&gt;</span>
         <div className="user-text">{text}</div>
       </div>
     );

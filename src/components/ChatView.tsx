@@ -79,7 +79,6 @@ export function ChatView() {
           ))}
           {tab.pendingUserText && (
             <div className="message-row user pending">
-              <span className="prompt">&gt;</span>
               <div className="user-text">{tab.pendingUserText}</div>
             </div>
           )}
