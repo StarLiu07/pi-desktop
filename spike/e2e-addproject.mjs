@@ -180,24 +180,23 @@ const main = async () => {
   console.log('add-button opacity before hover:', op0, '(tasks:', opTasks0 + ')');
   if (op0 !== '0' || opTasks0 !== '0') throw new Error('＋ should be hidden by default, opacity=' + op0 + '/' + opTasks0);
 
-  // S2b) The 项目 module header folds/unfolds the project list (chevron follows).
+  // S2b) The 项目 module header folds/unfolds the project list. The header
+  // carries no leading glyph (项目 must line up with 任务 below), so the
+  // fold state is verified by the item count alone.
   const before = await evalJs(cdp, `document.querySelectorAll('.project-item').length`);
+  const headerGlyph = await evalJs(cdp, `document.querySelectorAll('.proj-header .fld, .proj-header .chev, .proj-folder').length`);
+  console.log('proj-header leading glyphs:', headerGlyph);
+  if (headerGlyph !== 0) throw new Error('项目 header should carry no leading glyph (aligns with 任务)');
   await evalJs(cdp, `document.querySelector('.proj-header').click()`);
   await sleep(300);
-  const folded = await evalJs(cdp, `(() => ({
-    items: document.querySelectorAll('.project-item').length,
-    chev: document.querySelector('.proj-header .chev').textContent,
-  }))()`);
-  console.log('after fold:', JSON.stringify(folded));
-  if (folded.items !== 0 || folded.chev !== '▸') throw new Error('project list should be hidden after fold: ' + JSON.stringify(folded));
+  const folded = await evalJs(cdp, `document.querySelectorAll('.project-item').length`);
+  console.log('after fold:', folded);
+  if (folded !== 0) throw new Error('project list should be hidden after fold: ' + folded);
   await evalJs(cdp, `document.querySelector('.proj-header').click()`);
   await sleep(300);
-  const unfolded = await evalJs(cdp, `(() => ({
-    items: document.querySelectorAll('.project-item').length,
-    chev: document.querySelector('.proj-header .chev').textContent,
-  }))()`);
-  console.log('after unfold:', JSON.stringify(unfolded));
-  if (unfolded.items !== before || unfolded.chev !== '▾') throw new Error('project list should be back after unfold: ' + JSON.stringify(unfolded));
+  const unfolded = await evalJs(cdp, `document.querySelectorAll('.project-item').length`);
+  console.log('after unfold:', unfolded);
+  if (unfolded !== before) throw new Error('project list should be back after unfold: ' + unfolded);
 
   // S3) Real mouse move onto the 项目 header reveals it (CSS :hover).
   const rect = await evalJs(cdp, `(() => {

@@ -1,7 +1,7 @@
-/* Pi Desktop — OpenCode TUI aesthetic.
-   Palette lifted from opencode's default theme (packages/tui/src/theme/assets/opencode.json):
-   stepped grays on near-black, peach primary #fab283, violet accent #9d7cd8,
-   one-dark style status + syntax colors. */
+/* Pi Desktop — Codex shell × zcode transcript, on the opencode palette.
+   Colors stay opencode's (peach #fab283 = interaction, violet #9d7cd8 =
+   thinking/structure); the shell is sans, the transcript is dual-track:
+   user turns mono (terminal), assistant turns sans (app). */
 
 :root {
   /* opencode dark steps */
@@ -32,7 +32,7 @@
   --yellow: #e5c07b;
 
   --mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
-  --sans: 'Segoe UI', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --sans: 'Segoe UI Variable', 'Segoe UI', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
 }
 
 * {
@@ -49,7 +49,7 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 14px;
   overflow: hidden;
   -webkit-user-select: none;
@@ -97,11 +97,12 @@ select:focus {
 .app {
   display: grid;
   grid-template-columns: 236px 1fr;
-  grid-template-rows: 42px 1fr auto;
+  grid-template-rows: 40px 1fr auto 28px;
   grid-template-areas:
     'sidebar topbar'
     'sidebar chat'
-    'sidebar input';
+    'sidebar input'
+    'status status';
   height: 100vh;
 }
 
@@ -215,6 +216,40 @@ select:focus {
   background: rgba(224, 108, 117, 0.12);
 }
 
+/* Inline rename: the tab label swaps to a styled input on double-click —
+   same panel tones as the rest of the shell, peach focus ring, no native
+   dialog chrome. */
+.tab.editing {
+  cursor: text;
+  background: var(--bg-panel);
+}
+
+.tab.editing .tab-name,
+.tab.editing .tab-close,
+.tab.editing .dot {
+  display: none;
+}
+
+.tab-rename-input {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  background: var(--bg-element);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-size: 12.5px;
+  color: var(--text);
+  -webkit-user-select: text;
+  user-select: text;
+  transition: border-color 0.1s, box-shadow 0.1s;
+}
+
+.tab-rename-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
 .tab-btns {
   display: flex;
   align-items: center;
@@ -288,17 +323,24 @@ select:focus {
   min-height: 0;
 }
 
+/* Both section headers (项目/任务) share identical metrics so their rows
+   sit evenly; neither carries a leading glyph, so the two labels line up. */
 .sidebar-header {
-  padding: 12px 14px 8px;
+  padding: 8px 8px;
+  margin: 4px 6px 0;
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-faint);
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   gap: 8px;
+}
+
+.sidebar-header .sidebar-actions {
+  margin-left: auto;
 }
 
 /* 项目/任务 split (ZCode/Codex style); the tasks section owns the scroll. */
@@ -337,9 +379,11 @@ select:focus {
   pointer-events: auto;
 }
 
-/* The 项目 header row doubles as the module collapse/expand control. It has
-   three children (chevron, label, ＋) — space-between would center the label,
-   so left-align and push the actions to the far end instead. */
+/* The 项目 header row doubles as the module collapse/expand control. It
+   carries no glyph — the fold state is only announced via the title
+   tooltip/aria — so the label stays aligned with 任务 below.
+   Space-between would center the label, so left-align and push the
+   actions to the far end instead. */
 .sidebar-header.proj-header {
   cursor: pointer;
   user-select: none;
@@ -357,10 +401,67 @@ select:focus {
   background: var(--bg-element);
 }
 
-.sidebar-header.proj-header .chev {
-  font-size: 9px;
-  opacity: 0.7;
+/* ---------- animated folder glyph (DSH workspace style) ---------- */
+
+/* Closed ⇄ open morph in one SVG: the back wall stays put, the front face
+   drops to open the mouth, and the tab swings up. State changes are pure
+   CSS transitions — no JS animation loop. */
+.fld {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  color: var(--text-faint);
+  vertical-align: middle;
   flex-shrink: 0;
+}
+
+.fld .fld-back {
+  fill: currentColor;
+  opacity: 0.45;
+}
+
+.fld .fld-face {
+  transition: transform 240ms cubic-bezier(0.3, 1.15, 0.35, 1);
+}
+
+.fld .fld-front,
+.fld .fld-tab {
+  fill: currentColor;
+  opacity: 0.85;
+}
+
+.fld .fld-tab {
+  transition: transform 240ms cubic-bezier(0.3, 1.15, 0.35, 1);
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+}
+
+.fld.open .fld-face {
+  transform: translateY(1.8px);
+}
+
+.fld.open .fld-tab {
+  transform: rotate(-38deg);
+}
+
+/* Per-context sizes (replacing the old emoji slots). */
+.project-item .fld,
+.session-group-label .fld {
+  width: 12px;
+  height: 12px;
+}
+
+/* The active project's open folder is tinted (DSH folderActive). */
+.project-item.current .fld,
+.session-group-label.current:not(.collapsed) .fld {
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fld .fld-face,
+  .fld .fld-tab {
+    transition: none;
+  }
 }
 
 /* One recent-project row in the 项目 section; click switches (restart pi). */
@@ -536,7 +637,13 @@ select:focus {
   width: 10px;
   opacity: 0.8;
   flex-shrink: 0;
-  transition: opacity 0.1s;
+  display: inline-block;
+  /* Single ▸ glyph; the open state rotates it to point down (DSH arrow). */
+  transition: transform 150ms ease, opacity 0.1s;
+}
+
+.session-group-label .chev.open {
+  transform: rotate(90deg);
 }
 
 .session-group-label.collapsed .chev {
@@ -611,23 +718,24 @@ select:focus {
 .chat {
   grid-area: chat;
   overflow-y: auto;
-  padding: 24px 32px 16px;
+  padding: 28px 44px 16px;
   min-height: 0;
   -webkit-user-select: text;
   user-select: text;
 }
 
 .chat-inner {
-  max-width: 860px;
+  max-width: 760px;
 }
 
 .message-row {
   margin-bottom: 20px;
 }
 
-/* shared "> " prompt motif (user messages + input bar) */
+/* shared "> " prompt motif (user messages + input bar): mono, peach */
 .prompt {
   color: var(--accent);
+  font-family: var(--mono);
   font-weight: 700;
   margin-right: 8px;
   flex-shrink: 0;
@@ -635,7 +743,7 @@ select:focus {
 
 .message-row.user {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
 }
 
 .message-row.user .user-text {
@@ -643,6 +751,7 @@ select:focus {
   font-size: 13.5px;
   line-height: 1.65;
   color: var(--text);
+  font-family: var(--mono);
 }
 
 .message-row.user.pending {
@@ -681,14 +790,37 @@ select:focus {
 }
 
 .chat-empty .title {
-  font-size: 14px;
+  font-size: 15px;
   color: var(--text-dim);
   margin-top: 6px;
 }
 
 .chat-empty .hint {
-  font-size: 11.5px;
+  font-size: 10.5px;
   color: var(--text-faint);
+}
+
+/* ---------- assistant turn head (Codex-style) ---------- */
+
+.turn-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.turn-model {
+  color: var(--secondary);
+  font-weight: 600;
+}
+
+.turn-usage {
+  margin-left: auto;
+  font-size: 10.5px;
 }
 
 /* ---------- streaming bits ---------- */
@@ -710,19 +842,24 @@ select:focus {
 }
 
 .thinking-block {
-  margin-bottom: 12px;
+  margin: 10px 0 14px;
 }
 
 .thinking-block summary {
   cursor: pointer;
   list-style: none;
-  color: var(--text-faint);
-  font-size: 12px;
-  font-family: var(--mono);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  padding: 3px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  font-size: 11.5px;
+  font-family: var(--sans);
   user-select: none;
+  transition: border-color 0.1s, color 0.1s;
 }
 
 .thinking-block summary::-webkit-details-marker {
@@ -740,7 +877,8 @@ select:focus {
 }
 
 .thinking-block summary:hover {
-  color: var(--text-dim);
+  color: var(--text);
+  border-color: var(--border-strong);
 }
 
 .thinking-block .thinking-content {
@@ -748,7 +886,7 @@ select:focus {
   padding: 10px 14px;
   border-left: 2px solid var(--accent-2);
   background: var(--bg-panel);
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 8px 8px 0;
   color: var(--text-dim);
   font-size: 12.5px;
   white-space: pre-wrap;
@@ -798,24 +936,24 @@ select:focus {
   }
 }
 
-/* ---------- tool cards ---------- */
+/* ---------- tool cards (single-line expandable rows, Codex-style) ---------- */
 
 .tool-card {
-  margin: 8px 0;
+  margin: 6px 0;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-panel);
+  border-radius: 6px;
+  background: transparent;
   font-family: var(--mono);
   font-size: 12px;
   overflow: hidden;
 }
 
 .tool-card.running {
-  border-color: var(--border-active);
+  border-color: var(--border-strong);
 }
 
 .tool-card.error {
-  border-color: rgba(224, 108, 117, 0.55);
+  border-color: rgba(224, 108, 117, 0.45);
 }
 
 .tool-card-header {
@@ -828,13 +966,13 @@ select:focus {
 }
 
 .tool-card-header:hover {
-  background: var(--bg-element);
+  background: var(--bg-panel);
 }
 
 .tool-icon {
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   background: var(--text-faint);
   flex-shrink: 0;
 }
@@ -868,8 +1006,8 @@ select:focus {
 
 .tool-status {
   margin-left: auto;
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
+  font-size: 10px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   flex-shrink: 0;
 }
@@ -887,12 +1025,13 @@ select:focus {
 }
 
 .tool-card-body {
-  padding: 10px 12px;
+  padding: 8px 12px;
   border-top: 1px solid var(--border);
+  background: var(--bg-panel);
   color: var(--text-dim);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 320px;
+  max-height: 280px;
   overflow-y: auto;
   font-size: 11.5px;
   line-height: 1.6;
@@ -907,7 +1046,8 @@ select:focus {
 }
 
 /* One unified input panel (ZCode-style): selector toolbar on top,
-   prompt + textarea + send row below, all inside the same border. */
+   textarea row, and a bottom action row (thinking / model / send)
+   below, all inside the same border. */
 .inputbox {
   display: flex;
   flex-direction: column;
@@ -915,7 +1055,7 @@ select:focus {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 8px 14px 10px;
-  max-width: 860px;
+  max-width: 760px;
   margin: 0 auto;
   transition: border-color 0.15s;
 }
@@ -936,6 +1076,57 @@ select:focus {
   max-width: 180px;
 }
 
+/* Hidden native file picker — the attach (+) button triggers it. */
+.file-input {
+  display: none;
+}
+
+/* Attached-file chips: a row above the textarea while files are staged. */
+.inputbox-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 8px;
+}
+
+.attach-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 280px;
+  background: var(--bg-element);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2px 6px 2px 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.attach-chip-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attach-trunc {
+  color: var(--warn);
+}
+
+.attach-x {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.attach-x:hover {
+  color: var(--err);
+}
+
 .inputbox-main {
   display: flex;
   align-items: flex-end;
@@ -954,7 +1145,7 @@ select:focus {
   border: none;
   resize: none;
   padding: 4px 2px;
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.5;
   max-height: 160px;
   min-height: 22px;
@@ -965,20 +1156,68 @@ select:focus {
   outline: none;
 }
 
-.send-btn {
-  background: var(--accent);
-  color: #1a0f0a;
-  font-weight: 700;
-  font-size: 12.5px;
-  border-radius: 7px;
-  padding: 8px 16px;
-  transition: filter 0.1s;
-  flex-shrink: 0;
-  letter-spacing: 0.03em;
+/* Bottom action row: thinking level + model picker sit right next to the
+   send/stop button, the whole group flush right under the textarea —
+   no divider, no empty left side. */
+.inputbox-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  justify-content: flex-end;
 }
 
-.send-btn:hover {
+/* Attach-file (+) button: pinned to the left of the action row while the
+   thinking/model/send group stays flush right. */
+.attach-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: auto;
+  flex-shrink: 0;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+
+.attach-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.attach-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Codex-style circular send arrow (peach, the interaction color). */
+.send-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #1a0f0a;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: filter 0.1s, transform 0.1s;
+  flex-shrink: 0;
+}
+
+.send-btn:hover:not(:disabled) {
   filter: brightness(1.12);
+  transform: translateX(1px);
 }
 
 .send-btn:disabled {
@@ -990,11 +1229,15 @@ select:focus {
   background: rgba(224, 108, 117, 0.15);
   color: var(--err);
   font-weight: 700;
-  font-size: 12.5px;
-  border-radius: 7px;
-  padding: 8px 16px;
+  font-size: 12px;
+  border-radius: 15px;
+  height: 30px;
+  padding: 0 14px;
   flex-shrink: 0;
   border: 1px solid rgba(224, 108, 117, 0.4);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .stop-btn:hover {
@@ -1002,7 +1245,7 @@ select:focus {
 }
 
 .input-hint {
-  max-width: 860px;
+  max-width: 760px;
   margin: 6px auto 0;
   font-size: 10.5px;
   color: var(--text-faint);
@@ -1013,24 +1256,52 @@ select:focus {
   user-select: none;
 }
 
-/* Session usage stats under the input box — pi CLI footer style: ↑↓ R W CH% ¥ */
-.usage-stats {
-  display: flex;
-  gap: 10px;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.usage-stats span {
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-}
+/* Session usage stats — now live in the bottom status bar (zcode-style). */
 
 .input-hint-text {
   margin-left: auto;
   text-align: right;
+}
+
+/* ---------- status bar (zcode footer) ---------- */
+
+.statusbar {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.statusbar .sb-usage {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  align-items: center;
+}
+
+.statusbar .sb-usage span {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.statusbar .sb-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 /* ---------- selectors ---------- */
@@ -1046,7 +1317,7 @@ select:focus {
   background: var(--bg-panel);
   color: var(--text-dim);
   font-size: 11px;
-  font-family: var(--mono);
+  font-family: var(--sans);
   cursor: pointer;
   white-space: nowrap;
   transition: color 0.1s, border-color 0.1s, background 0.1s;
@@ -1148,7 +1419,7 @@ select:focus {
   padding: 6px 10px;
   border-radius: 6px;
   font-size: 12px;
-  font-family: var(--mono);
+  font-family: var(--sans);
   color: var(--text-dim);
   text-align: left;
   cursor: pointer;
@@ -1201,8 +1472,8 @@ select:focus {
   color: var(--text-faint);
 }
 
-/* Model / thinking chips on the input row, just left of the send button
-   (ZCode-style). Keep them from shrinking when the textarea grows. */
+/* Model / thinking chips in the input panel's bottom action row.
+   Keep them from shrinking when the textarea grows. */
 .inputbox-select {
   flex-shrink: 0;
 }
@@ -1210,18 +1481,12 @@ select:focus {
 /* ---------- markdown ---------- */
 
 .md {
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--text);
   line-height: 1.7;
 }
 
-/* assistant message footer: model + token usage */
-.msg-meta {
-  margin-top: 8px;
-  font-size: 11px;
-  color: var(--text-faint);
-  opacity: 0.8;
-}
+/* assistant message footer is now the turn head (see .turn-head) */
 
 .md > *:first-child {
   margin-top: 0;
@@ -1839,13 +2104,13 @@ select:focus {
 /* ---------- scrollbars ---------- */
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--bg-active);
-  border-radius: 5px;
+  border-radius: 4px;
   border: 2px solid var(--bg);
 }
 

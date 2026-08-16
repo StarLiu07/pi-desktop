@@ -95,16 +95,18 @@ const cdp = await Cdp.connect(tab.webSocketDebuggerUrl);
 await cdp.send('Page.enable');
 await cdp.send('Runtime.enable');
 
-// App boots: pi connects, then statusbar shows "pi 已连接".
-await waitFor(cdp, `document.querySelector('.status-state')?.textContent === 'pi 已连接'`, 60000, 'app connected to pi');
-console.log('[e2e] status:', await cdp.eval(`document.querySelector('.status-state')?.textContent`));
+// App boots: pi connects, then the status bar shows the green dot.
+await waitFor(cdp, `document.querySelector('.conn-dot')?.classList.contains('ok')`, 60000, 'app connected to pi');
+console.log('[e2e] status:', await cdp.eval(`document.querySelector('.statusbar .sb-right')?.innerText?.trim()`));
 await screenshot(cdp, 'e2e-1-empty.png');
 
 // No usage before any message.
-const pre = await cdp.eval(`document.querySelector('.usage-stats')?.innerText ?? null`);
-console.log('[e2e] usage-stats before prompt:', JSON.stringify(pre));
+const pre = await cdp.eval(`document.querySelector('.sb-usage')?.innerText ?? null`);
+console.log('[e2e] sb-usage before prompt:', JSON.stringify(pre));
 
-// Focus the textarea and type a prompt.
+// Focus the textarea (the app deliberately does not autofocus on boot —
+// some IMEs pop a candidate window over the app) and type a prompt.
+await cdp.eval(`document.querySelector('.inputbox-main textarea')?.focus()`);
 const focused = await cdp.eval(`document.activeElement?.tagName + '|' + document.activeElement?.className`);
 console.log('[e2e] focused element:', focused);
 await cdp.send('Input.insertText', { text: 'Reply with exactly: one' });
@@ -113,11 +115,11 @@ await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'E
 console.log('[e2e] prompt sent');
 
 // Wait for the assistant reply to land (message_end appends it to the list).
-await waitFor(cdp, `[...document.querySelectorAll('.message-row')].some(r => r.querySelector('.assistant'))`, 120000, 'assistant message rendered');
+await waitFor(cdp, `[...document.querySelectorAll('.message-row')].some(r => r.classList.contains('assistant'))`, 120000, 'assistant message rendered');
 
-// The usage stats line must appear under the input box.
-const statsText = await waitFor(cdp, `document.querySelector('.usage-stats')?.innerText ?? ''`, 30000, 'usage stats rendered');
-console.log('[e2e] usage-stats text:', JSON.stringify(statsText));
+// The usage stats must appear in the bottom status bar.
+const statsText = await waitFor(cdp, `document.querySelector('.sb-usage')?.innerText ?? ''`, 30000, 'usage stats rendered');
+console.log('[e2e] sb-usage text:', JSON.stringify(statsText));
 await screenshot(cdp, 'e2e-2-usage.png');
 
 // Also verify the hint line still renders.

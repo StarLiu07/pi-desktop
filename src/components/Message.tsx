@@ -121,21 +121,23 @@ export function MessageRow({ message, toolExecs, streaming = false }: RowProps) 
   }
   return (
     <div className="message-row assistant">
+      {(message.model || message.usage) && (
+        <div className="turn-head">
+          {message.model && <span className="turn-model">{message.model}</span>}
+          {message.usage && (
+            <span className="turn-usage">
+              {message.usage.totalTokens.toLocaleString()} tokens
+              {message.usage.cost.total > 0 ? ` · $${message.usage.cost.total.toFixed(4)}` : ''}
+            </span>
+          )}
+        </div>
+      )}
       <div className="bubble">
         <AssistantContentMemo
           parts={message.content}
           toolExecs={toolExecs}
           streaming={streaming}
         />
-        {!streaming && (message.model || message.usage) && (
-          <div className="msg-meta">
-            {message.model}
-            {message.model && message.usage ? ' · ' : ''}
-            {message.usage
-              ? `${message.usage.totalTokens.toLocaleString()} tokens · $${message.usage.cost.total.toFixed(4)}`
-              : ''}
-          </div>
-        )}
       </div>
     </div>
   );

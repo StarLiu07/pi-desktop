@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { WindowControls } from './WindowControls';
 
@@ -13,13 +14,27 @@ export function TopBar() {
   const status = useStore((s) => s.status);
   const setSettingsOpen = useStore((s) => s.setSettingsOpen);
 
-  const rename = (index: number) => {
-    const t = tabs[index];
-    const name = window.prompt('会话名称', t?.name ?? '');
-    if (name && name.trim()) {
-      // Renaming applies to pi's current session, so switch there first.
-      activateTab(index).then(() => renameActiveSession(name.trim()));
-    }
+  // Inline rename state: double-click a tab label to edit it in place
+  // (Enter/blur commits, Esc cancels) — no native prompt dialogs.
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [draft, setDraft] = useState('');
+  const cancelRef = useRef(false);
+
+  const startRename = (index: number) => {
+    setDraft(tabs[index]?.name ?? '');
+    setEditingIndex(index);
+  };
+
+  const commitRename = (index: number) => {
+    setEditingIndex(null);
+    const name = draft.trim();
+    if (!name || name === tabs[index]?.name) return;
+    // Renaming applies to pi's current session, so switch there first.
+    activateTab(index).then(() => renameActiveSession(name));
+  };
+
+  const cancelRename = () => {
+    cancelRef.current = true;
   };
 
   return (
@@ -31,29 +46,67 @@ export function TopBar() {
       {/* The strip itself stays draggable (empty space between tabs); only each
           tab must block dragging so clicks still activate sessions. */}
       <nav className="tab-strip">
-        {tabs.map((t, i) => (
-          <div
-            key={i}
-            className={`tab ${i === activeTabIndex ? 'active' : ''}`}
-            data-tauri-drag-region="false"
-            onClick={() => activateTab(i)}
-            onDoubleClick={() => rename(i)}
-            title="双击重命名"
-          >
-            <span className="tab-name">{t.name}</span>
-            {t.agentActive && <span className="dot" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0, animation: 'pulse 1s infinite' }} />}
-            <button
-              className="tab-close"
-              onClick={(e) => {
-                e.stopPropagation();
-                closeTab(i);
-              }}
-              title="关闭会话"
+        {tabs.map((t, i) => {
+          const editing = editingIndex === i;
+          return (
+            <div
+              key={i}
+              className={`tab ${i === activeTabIndex ? 'active' : ''} ${editing ? 'editing' : ''}`}
+              data-tauri-drag-region="false"
+              onClick={() => activateTab(i)}
+              onDoubleClick={() => startRename(i)}
+              title="双击重命名"
             >
-              ×
-            </button>
-          </div>
-        ))}
+              {editing ? (
+                <input
+                  className="tab-rename-input"
+                  value={draft}
+                  autoFocus
+                  spellCheck={false}
+                  onClick={(e) => e.stopPropagation()}
+                  onDoubleClick={(e) => e.stopPropagation()}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur();
+                    } else if (e.key === 'Escape') {
+                      cancelRename();
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  onBlur={() => {
+                    if (cancelRef.current) {
+                      cancelRef.current = false;
+                      setEditingIndex(null);
+                      return;
+                    }
+                    commitRename(i);
+                  }}
+                  ref={(el) => {
+                    if (el) el.focus();
+                  }}
+                />
+              ) : (
+                <>
+                  <span className="tab-name">{t.name}</span>
+                  {t.agentActive && <span className="dot" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0, animation: 'pulse 1s infinite' }} />}
+                  <button
+                    className="tab-close"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeTab(i);
+                    }}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                    title="关闭会话"
+                  >
+                    ×
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })}
       </nav>
       <div className="tab-btns" data-tauri-drag-region="false">
         <button onClick={() => forkSession()} title="分叉当前会话">

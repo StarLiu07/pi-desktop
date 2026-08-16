@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
+import { FolderIcon } from './FolderIcon';
 import type { SessionListItem } from '../rpc/bridge';
 
 /** localStorage key for the collapsed 项目 module (persists across restarts). */
@@ -178,9 +179,10 @@ export function Sidebar() {
       {/* 项目 — ZCode/Codex style: projects and tasks live in separate
           sections; the 「＋」only appears while hovering the header. */}
       <div className="sidebar-section proj">
-        {/* The header row is the collapse control: clicking it (or the
-            chevron) folds/unfolds the project list; the 「＋」is a sibling
-            action that appears only on hover (CSS) and stops propagation. */}
+        {/* The header row is the collapse control: clicking it folds/unfolds
+            the project list; the 「＋」is a sibling action that appears only
+            on hover (CSS) and stops propagation. The header carries no
+            leading glyph — 项目 must line up with 任务 below it. */}
         <div
           className={`sidebar-header proj-header${projCollapsed ? ' collapsed' : ''}`}
           role="button"
@@ -188,7 +190,6 @@ export function Sidebar() {
           title={projCollapsed ? '展开项目列表' : '折叠项目列表'}
           onClick={toggleProjCollapsed}
         >
-          <span className="chev">{projCollapsed ? '▸' : '▾'}</span>
           <span>项目</span>
           <div className="sidebar-actions">
             <button
@@ -214,7 +215,9 @@ export function Sidebar() {
                 onClick={() => setProject(p)}
                 title={p}
               >
-                <span className="icon">📁</span>
+                <span className="icon">
+                  <FolderIcon open={!!currentProject && samePath(p, currentProject)} />
+                </span>
                 <span className="name">{baseName(p)}</span>
                 {currentProject && samePath(p, currentProject) && (
                   <span className="cur">当前</span>
@@ -267,8 +270,10 @@ export function Sidebar() {
                 aria-expanded={!collapsed.has(g.key)}
                 onClick={() => toggleGroup(g.key)}
               >
-                <span className="chev">{collapsed.has(g.key) ? '▸' : '▾'}</span>
-                <span className="icon">📁</span>
+                <span className={`chev${collapsed.has(g.key) ? '' : ' open'}`}>▸</span>
+                <span className="icon">
+                  <FolderIcon open={!collapsed.has(g.key)} />
+                </span>
                 <span className="label">{g.label}</span>
                 {g.isCurrent && <span className="cur">当前</span>}
                 <span className="count">{g.items.length}</span>

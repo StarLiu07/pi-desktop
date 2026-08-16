@@ -3,6 +3,31 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.26] - 2026-08-16
+
+### Features
+- 输入区支持附加文件：＋ 按钮选择本地文件，内容以 `【文件：name】` 块拼入
+  提示词（每文件 200KB 截断，超出标注「已截取」），与文字一起发给 pi
+- 底部状态栏（ZCode 式页脚）：当前会话用量（↑/↓ 输入输出 tokens、R/W 缓存
+  读写、CH 命中率、¥ 成本，格式对齐 pi CLI 底部统计行）+ 连接状态点
+- 会话标签双击内联重命名：双击 tab 就地出现输入框（选中全文），Enter/失焦
+  提交（经 `rename_session` 同步给 pi）、Esc 取消；不再弹原生 prompt
+- 消息气泡上的模型/用量元信息移到气泡上方 `.turn-head`，流式期间也显示
+
+### Fixes
+- 侧边栏「项目」标题旁的文件夹图标删掉——「项目」「任务」两个分区标题因此水平
+  对齐（原来「项目」带一个前导状态图标而「任务」没有，文字起点差一截）。折叠/
+  展开仍可用（标题整行可点），状态提示靠 title tooltip/aria。「任务」下的会话
+  分组、「项目」列表里的 SVG 文件夹图标（开合动画、当前项目/当前分组展开时染
+  accent 色、分组 ▸ 旋转过渡）全部保留
+- 模型/思考选择器整理进 `lib/selectors.ts`（modelKey 等），输入区改为
+  「textarea 行 + 下方工具栏行」布局
+- 回归同步：e2e-addproject.mjs S2b 改为「标题无前导图标 + 按条目数验证折叠」；
+  e2e-foldericon.mjs 移除标题图标断言、保留分组/条目图标断言；e2e-modelprovider.mjs
+  选择器适配新 `.inputbox-actions` 布局（原 `.inputbox-main` 已失效，且「模型已
+  加载」等待在元素缺失时恒真、会跳过前置检查）；e2e-tabrename.mjs 补 250ms 等待
+  避开 focus 边框 0.1s 过渡的竞态；e2e-smoke/e2e-project 同步到新状态栏 UI
+
 ## [0.1.25] - 2026-08-15
 
 ### Fixes

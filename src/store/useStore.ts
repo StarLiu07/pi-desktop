@@ -708,7 +708,7 @@ export const useStore = create<Store>((set, get) => {
 
     setModel: async (key) => {
       // Key = `${provider}::${id}` (model ids collide across providers, so
-      // the selector keys on provider+id; see modelKey in InputBar.tsx).
+      // the selector keys on provider+id; see modelKey in lib/selectors.ts).
       const sep = key.indexOf('::');
       const provider = sep >= 0 ? key.slice(0, sep) : '';
       const modelId = sep >= 0 ? key.slice(sep + 2) : key;

@@ -1,7 +1,7 @@
 // E2E driver for the project (workspace folder) feature: loads the Pi Desktop
-// UI (mock bridge) in headless Chrome, switches project via the topbar picker
-// (mock pick returns the repo root), sends a prompt, and screenshots every
-// stage. Run: node spike/e2e-project.mjs
+// UI (mock bridge) in headless Chrome, adds a project via the sidebar ＋
+// dialog (mock browse returns the repo root), sends a prompt, and screenshots
+// every stage. Run: node spike/e2e-project.mjs (mock + vite must be up)
 import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -32,7 +32,7 @@ async function waitReady(cdp, what) {
   // into 'connecting' first, or the first poll reads the stale ready state.
   await sleep(600);
   for (let i = 0; i < 40; i++) {
-    const st = await evalJs(cdp, `document.querySelector('.status-state')?.textContent ?? null`);
+    const st = await evalJs(cdp, `document.querySelector('.conn-dot')?.classList.contains('ok') ? 'pi 已连接' : null`);
     if (st === 'pi 已连接') {
       console.log('[waitReady]', what, '-> ready after', i, 'tries');
       return;
@@ -121,7 +121,7 @@ const main = async () => {
 
   // 1) Project chip exists and shows the placeholder label.
   const chip = await evalJs(cdp, `(() => {
-    const el = document.querySelector('.topbar .project-select .sel-name');
+    const el = document.querySelector('.inputbox .project-select .sel-name');
     return el ? el.textContent : null;
   })()`);
   console.log('project chip label:', chip);
@@ -135,21 +135,47 @@ const main = async () => {
   }
   await shot(cdp, '1-initial.png');
 
-  // 2) Open the project menu — 「无项目」+ pick option (no recents yet).
-  await evalJs(cdp, `document.querySelector('.topbar .project-select .status-select').click()`);
+  // 2) Open the project menu — 「无项目」only (no recents yet). The pick
+  //    entry point moved out of the menu in 0.1.21: it's the sidebar
+  //    「项目」header ＋ button now (add-project dialog).
+  await evalJs(cdp, `document.querySelector('.inputbox .project-select .status-select').click()`);
   await sleep(400);
   await shot(cdp, '2-project-menu.png');
-  const menuText = await evalJs(cdp, `document.querySelector('.topbar .selector-menu').textContent`);
+  const menuText = await evalJs(cdp, `document.querySelector('.inputbox .selector-menu').textContent`);
   console.log('menu contents:', JSON.stringify(menuText));
   if (!menuText.includes('无项目')) throw new Error('no-project option missing');
-  if (!menuText.includes('选择其他文件夹')) throw new Error('pick option missing');
+  await evalJs(cdp, `document.querySelector('.inputbox .project-select .status-select').click()`);
+  await sleep(200);
 
-  // 3) Pick a folder (mock returns the repo root D:\pi-desktop).
+  // 3) Add a project through the dialog (mock browse returns the repo root
+  //    D:\pi-desktop): sidebar 项目 ＋ → 浏览… → 添加项目.
   await evalJs(cdp, `(() => {
-    const options = [...document.querySelectorAll('.topbar .selector-menu .selector-option')];
-    const pick = options.find((o) => o.textContent.includes('选择其他文件夹'));
-    pick.click();
+    const add = document.querySelector('.sidebar-header.proj-header .section-add');
+    if (!add) return false;
+    add.click();
+    return true;
   })()`);
+  for (let i = 0; i < 20 && !(await evalJs(cdp, `!!document.querySelector('.modal.add-project')`)); i++) {
+    await sleep(300);
+  }
+  if (!(await evalJs(cdp, `!!document.querySelector('.modal.add-project')`))) {
+    throw new Error('add-project dialog did not open');
+  }
+  await evalJs(cdp, `document.querySelector('.modal.add-project .browse-btn').click()`);
+  for (let i = 0; i < 40; i++) {
+    const v = await evalJs(cdp, `document.querySelector('.modal.add-project input')?.value ?? ''`);
+    if (v === 'D:\\pi-desktop') break;
+    await sleep(300);
+  }
+  const browseVal = await evalJs(cdp, `document.querySelector('.modal.add-project input')?.value ?? null`);
+  console.log('browse filled path:', browseVal);
+  for (let i = 0; i < 40; i++) {
+    const ok = await evalJs(cdp, `document.querySelector('.modal.add-project .proj-hint')?.classList.contains('ok')`);
+    if (ok) break;
+    await sleep(300);
+  }
+  await shot(cdp, '3-add-dialog-validated.png');
+  await evalJs(cdp, `document.querySelector('.modal.add-project .actions button.primary').click()`);
   await waitReady(cdp, 'project pick');
   await sleep(800);
   const dbg = await evalJs(cdp, `(() => {
@@ -158,25 +184,25 @@ const main = async () => {
     return JSON.stringify({
       topbar: tb ? tb.className : null,
       hasProjectSelect: !!document.querySelector('.project-select'),
-      statusText: document.querySelector('.status-state')?.textContent ?? null,
+      statusText: document.querySelector('.conn-dot')?.classList.contains('ok') ? 'pi 已连接' : null,
       bodySnippet: document.body.textContent.slice(0, 200),
     });
   })()`);
   console.log('debug after pick:', dbg);
   const chip2 = await evalJs(cdp, `(() => {
-    const el = document.querySelector('.topbar .project-select .sel-name');
+    const el = document.querySelector('.inputbox .project-select .sel-name');
     return el ? el.textContent : null;
   })()`);
   console.log('chip after pick:', chip2);
   if (chip2 !== 'pi-desktop') throw new Error('chip should read pi-desktop after pick, got ' + chip2);
-  const status2 = await evalJs(cdp, `document.querySelector('.status-state').textContent`);
+  const status2 = await evalJs(cdp, `document.querySelector('.conn-dot')?.classList.contains('ok') ? 'pi 已连接' : '?'`);
   if (status2 !== 'pi 已连接') throw new Error('not reconnected after project switch, got ' + status2);
   await shot(cdp, '3-project-picked.png');
 
   // 4) Open the menu again — pi-desktop is now a recent project and selected.
-  await evalJs(cdp, `document.querySelector('.topbar .project-select .status-select').click()`);
+  await evalJs(cdp, `document.querySelector('.inputbox .project-select .status-select').click()`);
   await sleep(400);
-  const menu2 = await evalJs(cdp, `document.querySelector('.topbar .selector-menu').textContent`);
+  const menu2 = await evalJs(cdp, `document.querySelector('.inputbox .selector-menu').textContent`);
   console.log('menu after pick:', JSON.stringify(menu2));
   if (!menu2.includes('pi-desktop')) throw new Error('recent project not in menu');
   if (!menu2.includes('无项目')) throw new Error('no-project option gone after pick');
@@ -225,16 +251,16 @@ const main = async () => {
   // 7) Switch back to NO-project mode — menu must offer 「无项目」.
   // Ensure the menu is freshly open (React's open state may be stale after
   // earlier DOM poking): close if open, then open.
-  const menuCurrentlyOpen = await evalJs(cdp, `!!document.querySelector('.topbar .selector-menu')`);
+  const menuCurrentlyOpen = await evalJs(cdp, `!!document.querySelector('.inputbox .selector-menu')`);
   if (menuCurrentlyOpen) {
-    await evalJs(cdp, `document.querySelector('.topbar .project-select .status-select').click()`);
+    await evalJs(cdp, `document.querySelector('.inputbox .project-select .status-select').click()`);
     await sleep(300);
   }
-  await evalJs(cdp, `document.querySelector('.topbar .project-select .status-select').click()`);
+  await evalJs(cdp, `document.querySelector('.inputbox .project-select .status-select').click()`);
   await sleep(400);
   await shot(cdp, '7-menu-with-no-project.png');
   await evalJs(cdp, `(() => {
-    const options = [...document.querySelectorAll('.topbar .selector-menu .selector-option')];
+    const options = [...document.querySelectorAll('.inputbox .selector-menu .selector-option')];
     const np = options.find((o) => o.textContent.includes('无项目'));
     if (!np) throw new Error('no-project option missing');
     np.click();
@@ -242,12 +268,12 @@ const main = async () => {
   await waitReady(cdp, 'no-project switch');
   await sleep(800);
   const chip3 = await evalJs(cdp, `(() => {
-    const el = document.querySelector('.topbar .project-select .sel-name');
+    const el = document.querySelector('.inputbox .project-select .sel-name');
     return el ? el.textContent : null;
   })()`);
   console.log('chip after no-project:', chip3);
   if (chip3 !== '无项目') throw new Error('chip should read 无项目, got ' + chip3);
-  const status3 = await evalJs(cdp, `document.querySelector('.status-state').textContent`);
+  const status3 = await evalJs(cdp, `document.querySelector('.conn-dot')?.classList.contains('ok') ? 'pi 已连接' : '?'`);
   if (status3 !== 'pi 已连接') throw new Error('not reconnected after no-project, got ' + status3);
   await shot(cdp, '8-no-project-mode.png');
 

@@ -113,9 +113,10 @@ const check = (name, actual, expected) => {
   console.log(`[model] ${ok ? 'PASS' : 'FAIL'} ${name}: got ${JSON.stringify(actual)} want ${JSON.stringify(expected)}`);
 };
 
-// Page-side helpers.
+// Page-side helpers. The model selector lives in the input bar's action row
+// (the one without the ⚡ sel-icon — the thinking selector keeps the icon).
 const openModelMenu = `(() => {
-  const sel = [...document.querySelectorAll('.inputbox-main .inputbox-select')]
+  const sel = [...document.querySelectorAll('.inputbox-actions .inputbox-select')]
     .find((s) => !s.querySelector('.sel-icon'));
   if (!sel) return false;
   sel.querySelector('.status-select').click();
@@ -151,11 +152,13 @@ try {
   await cdp.send('Page.enable');
   await cdp.send('Runtime.enable');
 
-  // App boots against real pi; models load with it.
+  // App boots against real pi; models load with it. (?? '' guards the
+  // pre-render state where the selector isn't in the DOM yet — a bare
+  // optional chain would read undefined ≠ '选择模型' and pass instantly.)
   await waitFor(cdp, `document.querySelector('.conn-dot')?.classList.contains('ok')`, 90000, 'app connected');
   await waitFor(
     cdp,
-    `document.querySelector('.inputbox-main .inputbox-select .status-select .sel-name')?.textContent !== '选择模型'`,
+    `(document.querySelector('.inputbox-actions .inputbox-select .status-select .sel-name')?.textContent ?? '') !== '选择模型'`,
     30000,
     'current model loaded',
   );
@@ -183,7 +186,7 @@ try {
 
   // 2. Select the deepseek copy, verify ✓ follows it.
   await cdp.eval(clickInGroup('deepseek', 'DeepSeek V4 Flash'));
-  await waitFor(cdp, `document.querySelector('.inputbox-main .inputbox-select .status-select .sel-prov')?.textContent === 'deepseek'`, 30000, 'switched to provider=deepseek');
+  await waitFor(cdp, `document.querySelector('.inputbox-actions .inputbox-select .status-select .sel-prov')?.textContent === 'deepseek'`, 30000, 'switched to provider=deepseek');
   await cdp.eval(openModelMenu);
   await waitFor(cdp, `!!document.querySelector('.selector-menu')`, 10000, 'model menu open (2)');
   check('deepseek copy selected only', await cdp.eval(selectedCount), 1);
@@ -201,9 +204,9 @@ try {
   //    the ✓ must move to that group only (old code: find() picked deepseek,
   //    so this step could never switch providers).
   await cdp.eval(clickInGroup('opencode-go', 'DeepSeek V4 Flash'));
-  await waitFor(cdp, `document.querySelector('.inputbox-main .inputbox-select .status-select .sel-prov')?.textContent === 'opencode-go'`, 30000, 'switched to provider=opencode-go');
+  await waitFor(cdp, `document.querySelector('.inputbox-actions .inputbox-select .status-select .sel-prov')?.textContent === 'opencode-go'`, 30000, 'switched to provider=opencode-go');
   const title = await cdp.eval(
-    `[...document.querySelectorAll('.inputbox-main .inputbox-select')]
+    `[...document.querySelectorAll('.inputbox-actions .inputbox-select')]
        .find((s) => !s.querySelector('.sel-icon'))
        ?.querySelector('.status-select')?.title`);
   console.log('[model] trigger title after switch:', title);
