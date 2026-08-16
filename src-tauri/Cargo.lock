@@ -2490,7 +2490,7 @@ dependencies = [
 
 [[package]]
 name = "pi-desktop"
-version = "0.1.26"
+version = "0.1.31"
 dependencies = [
  "rfd",
  "serde",
