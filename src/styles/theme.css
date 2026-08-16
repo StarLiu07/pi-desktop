@@ -726,6 +726,7 @@ select:focus {
 
 .chat-inner {
   max-width: 760px;
+  margin: 0 auto;
 }
 
 .message-row {

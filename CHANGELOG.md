@@ -3,6 +3,13 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.27] - 2026-08-16
+
+### Fixes
+- 聊天消息列（.chat-inner）改为 `margin: 0 auto` 水平居中——AI 输出默认显示在
+  窗口中间，与下方输入框（.inputbox 本就居中）对齐；此前消息列在左侧、输入框
+  居中，两者轴心不一致
+
 ## [0.1.26] - 2026-08-16
 
 ### Features
