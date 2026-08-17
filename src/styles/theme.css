@@ -771,7 +771,7 @@ select:focus {
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 24px;
+  width: 20px;
   height: 2px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.25);
@@ -779,12 +779,12 @@ select:focus {
 }
 
 .msg-nav-marker:hover::before {
-  width: 30px;
+  width: 26px;
   background: rgba(255, 255, 255, 0.55);
 }
 
 .msg-nav-marker.active::before {
-  width: 38px;
+  width: 32px;
   height: 3px;
   background: #fff;
 }

@@ -3,6 +3,12 @@
 版本号三个文件同步：`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json`。
 打 `v*` tag 时 GitHub Actions 自动构建 Windows 安装包并发布 draft release。
 
+## [0.1.35] - 2026-08-17
+
+### Tweaks
+- 消息导航 rail 白条整体略缩短：暗条 24→20px、hover 30→26px、选中
+  38→32px，粗细和层级关系不变，只是每根条短一截
+
 ## [0.1.34] - 2026-08-16
 
 ### Fixes
